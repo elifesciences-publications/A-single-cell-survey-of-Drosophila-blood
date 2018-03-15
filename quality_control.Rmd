@@ -1,0 +1,239 @@
+---
+title: "Quality Control"
+author: "`r getOption('author')`"
+date: "`r Sys.Date()`"
+bibliography: bibliography.bib
+params:
+    bcbFile: "data/R/2018-01-10/run3_2018_01_10.rda"
+    minUMIs: !r c("run3_ATAGCCTT" = 200, "run3_CTTAATAG" = 200, "run3_TAAGGCTC" = 200, "run3_TCGCATAA" = 500)
+    maxUMIs: !r Inf
+    minGenes: !r c("run3_ATAGCCTT" = 200, "run3_CTTAATAG" = 200, "run3_TAAGGCTC" = 200, "run3_TCGCATAA" = 500)
+    maxGenes: !r Inf
+    maxMitoRatio: 0.25
+    minNovelty: 0.75
+    minCellsPerGene: 3
+    outputDir: "."
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+suppressPackageStartupMessages(library(bcbioSingleCell))
+
+# Shared RMarkdown settings
+prepareSingleCellTemplate()
+if (file.exists("setup.R")) {
+    source("setup.R")
+}
+
+# Directory paths
+dataDir <- file.path(params$outputDir, "data", "R", Sys.Date())
+dir.create(dataDir, recursive = TRUE, showWarnings = FALSE)
+
+# Load bcbioSingleCell object
+bcbName <- load(params$bcbFile)
+bcb <- get(bcbName, inherits = FALSE)
+```
+
+```{r header, child="_header.Rmd", eval=file.exists("_header.Rmd")}
+```
+
+
+
+# Sample metadata
+
+```{r sample_metadata}
+sampleMetadata(bcb)
+```
+
+[bcbio][] run data was imported from **`r metadata(bcb)[["uploadDir"]]`**.
+
+
+
+# Count alignment
+
+We aligned the counts using the latest transcriptome FASTA from [FlyBase][] (FB2017_06; dmel_r6.19).
+
+
+
+# Quality control metrics {.tabset}
+
+## Reads per cell
+
+These are counts of how many reads are assigned to a given cellular barcode. The purpose of these histograms is that we should see one single large peak that represents cells that were encapsulated. If we see a strong shoulder, or a bimodal distribution of the cells, that can indicate a couple problems. It might be that there is free floating RNA, which happens when cells are dying. It could also be that there are a set of cells that failed for some reason. Finally, it could also be that there are biologically different types of cells, and one type is much smaller than the other. If this is the case we would expect to see less RNA being sequenced from the smaller cells.
+
+This looks fairly typical for inDrop samples. Most cells have a read depth > 10^3, but there's a small peak of cells with a lower read depth, the range of 10^2-3.
+
+```{r plot_reads_per_cell}
+plotReadsPerCell(bcb, interestingGroups = "sampleName")
+```
+
+
+## Cell counts
+
+Note that this is prior to filtering, but the PC2.1 sample looks a little noisy compared to the other samples. It has a also seems to have a stronger peak in the proportion of cells with a high log10 reads per cell count (see "Reads per cell" tab). Otherwise, these values are pretty close to 3000, as expected.
+
+```{r plot_cell_counts}
+plotCellCounts(bcb)
+```
+
+
+## UMI counts per cell {.tabset}
+
+Here I bumped the cutoff right up to the edge of the histogram.
+
+```{r plot_umis_per_cell}
+mdHeader("histogram", level = 3)
+plotUMIsPerCell(
+    bcb,
+    geom = "histogram",
+    min = min(params$minUMIs)
+)
+    
+mdHeader("violin", level = 3)
+plotUMIsPerCell(
+    bcb,
+    geom = "violin",
+    min = min(params$minUMIs)
+)
+
+mdHeader("boxplot", level = 3)
+plotUMIsPerCell(
+    bcb,
+    geom = "boxplot",
+    min = min(params$minUMIs)
+)
+```
+
+
+## Genes detected per cell {.tabset}
+
+Here by "detected", we mean genes with a non-zero count measurement per cell. Seeing gene detection in the range of `500`-`5000` is normal for [inDrop][] analysis.
+
+You can see that this is the quality metric that is having the largest impact on determining which cells to keep. I dropped this down to 100 to see if we can include more cells in the analysis for the time being. We may want to threshold this up into the range of 200-250 if the clustering is too noisy.
+
+```{r plot_genes_per_cell}
+mdHeader("histogram", level = 3)
+plotGenesPerCell(
+    bcb,
+    geom = "histogram",
+    min = min(params$minGenes),
+    max = max(params$maxGenes)
+)
+
+mdHeader("violin", level = 3)
+plotGenesPerCell(
+    bcb,
+    geom = "violin",
+    min = min(params$minGenes),
+    max = max(params$maxGenes)
+)
+
+mdHeader("boxplot", level = 3)
+plotGenesPerCell(
+    bcb,
+    geom = "boxplot",
+    min = min(params$minGenes),
+    max = max(params$maxGenes)
+)
+```
+
+
+## UMIs vs. genes detected
+
+If we graph out the total number of UMI counts per cell vs. the genes detected per cell, we can assess whether there is a large population of low quality cells with low counts and/or gene detection.
+
+```{r plot_umis_vs_genes}
+plotUMIsVsGenes(bcb, interestingGroups = "sampleName")
+```
+
+
+## Mitochondrial counts ratio {.tabset}
+
+We evaluate overall mitochondrial gene expression as a biomarker of cellular stress during sample preparation.
+
+This looks okay to me. I've applied a filtering cutoff of 25%, which is a little high but seems to be appropriate for Drosophila.
+
+```{r plot_mito_ratio}
+mdHeader("histogram", level = 3)
+plotMitoRatio(
+    bcb,
+    geom = "histogram",
+    max = max(params$maxMitoRatio)
+)
+
+mdHeader("violin", level = 3)
+plotMitoRatio(
+    bcb,
+    geom = "violin",
+    max = max(params$maxMitoRatio)
+)
+
+mdHeader("boxplot", level = 3)
+plotMitoRatio(
+    bcb,
+    geom = "boxplot",
+    max = max(params$maxMitoRatio)
+)
+```
+
+
+## Novelty {.tabset}
+
+Another way to QC the data is to look for less novelty, that is cells that have less genes detected per count than other cells. We can see the samples where we sequenced each cell less have a higher overall novelty, that is because we have not started saturated the sequencing for any given gene for these samples. Outlier cells in these samples might be cells that we have a less complex RNA species than other cells. Sometimes we can detect contamination with low complexity cell types like red blood cells via this metric.
+
+```{r plot_novelty}
+mdHeader("histogram", level = 3)
+plotNovelty(
+    bcb,
+    geom = "histogram",
+    min = min(params$minNovelty)
+)
+
+mdHeader("violin", level = 3)
+plotNovelty(
+    bcb,
+    geom = "violin",
+    min = min(params$minNovelty)
+)
+
+mdHeader("boxplot", level = 3)
+plotNovelty(
+    bcb,
+    geom = "boxplot",
+    min = min(params$minNovelty)
+)
+```
+
+
+
+# Filter cells
+
+```{r filter_cells}
+bcb_filtered <- filterCells(
+    bcb,
+    minUMIs = params$minUMIs,
+    maxUMIs = params$maxUMIs,
+    minGenes = params$minGenes,
+    maxGenes = params$maxGenes,
+    maxMitoRatio = params$maxMitoRatio,
+    minNovelty = params$minNovelty,
+    minCellsPerGene = params$minCellsPerGene)
+assignAndSaveData(
+    name = paste(bcbName, "filtered", sep = "_"),
+    object = bcb_filtered,
+    dir = dataDir)
+```
+
+```{r plot_filtered_qc, results="asis"}
+plotQC(
+    bcb_filtered,
+    geom = "violin",
+    return = "markdown",
+    headerLevel = 2)
+```
+
+There's seems to be something different about the PC2.1 sample relative to the other samples. It appears that more cells were captured for this sample, even after we apply our filtering cutoffs.
+
+
+
+```{r footer, child="_footer.Rmd", eval=file.exists("_footer.Rmd")}
+```
