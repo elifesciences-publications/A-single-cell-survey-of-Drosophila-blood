@@ -1,0 +1,19 @@
+mjs65@login02:Project_tsudhirg$ ls -lh
+total 27G
+-rw-rw-r--. 1 mjs65 bcbio 3.0G Jan  3 17:15 LIB031275_GEN00112408_S1_L001_R1_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 762M Jan  3 17:15 LIB031275_GEN00112408_S1_L001_R2_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 668M Jan  3 17:15 LIB031275_GEN00112408_S1_L001_R3_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 986M Jan  3 17:15 LIB031275_GEN00112408_S1_L001_R4_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 3.2G Jan  3 17:29 LIB031275_GEN00112408_S1_L002_R1_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 812M Jan  3 17:29 LIB031275_GEN00112408_S1_L002_R2_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 726M Jan  3 17:29 LIB031275_GEN00112408_S1_L002_R3_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 1.1G Jan  3 17:29 LIB031275_GEN00112408_S1_L002_R4_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 3.2G Jan  3 17:44 LIB031275_GEN00112408_S1_L003_R1_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 785M Jan  3 17:44 LIB031275_GEN00112408_S1_L003_R2_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 720M Jan  3 17:44 LIB031275_GEN00112408_S1_L003_R3_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 1.1G Jan  3 17:44 LIB031275_GEN00112408_S1_L003_R4_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 3.1G Jan  3 17:57 LIB031275_GEN00112408_S1_L004_R1_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 789M Jan  3 17:57 LIB031275_GEN00112408_S1_L004_R2_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 708M Jan  3 17:57 LIB031275_GEN00112408_S1_L004_R3_001.fastq.gz
+-rw-rw-r--. 1 mjs65 bcbio 1.1G Jan  3 17:57 LIB031275_GEN00112408_S1_L004_R4_001.fastq.gz
+mjs65@login02:Project_tsudhirg$ 

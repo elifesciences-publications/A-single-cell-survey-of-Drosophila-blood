@@ -1,0 +1,274 @@
+---
+title: "Transcription Factor Marker Analysis"
+author: "`r getOption('author')`"
+date: "`r Sys.Date()`"
+---
+
+```{r setup, cache=FALSE, message=FALSE, warning=FALSE}
+source("setup.R")
+loadDataAsName(seurat = "lanepool_CTTAATAG_seurat", dir = "data")
+dark_color <- scale_color_viridis()
+light_color <- scale_color_gradient(low = "lightgray", high = "purple")
+```
+
+```{r header, child="_header.Rmd", eval=file.exists("_header.Rmd")}
+```
+
+
+
+# Requested Markers
+
+I just want to get some reagents and flies for certain Transcription Factors enriched in each cluster of the PC condition. Will it be possible for you to give me how the expression of these will be on the tSNE? only if it is not time consuming!! For e.g., I wanted to see "sage" for Clusters 2 and 3, "toy" for Cl#4, "l(2)k10201" for cluster 7, "fs(1)h" for 5 and "Pdp1" for 9. If these are specific, we can also use them to id the cell clusters.
+
+Focus specifically on the PC1 sample. PC1 = lanepool_CTTAATAG.
+
+```{r data_summary}
+sampleMetadata(seurat)
+plotTSNE(seurat)
+```
+
+
+
+* * *
+
+
+
+# sage {.tabset}
+
+Here we're expecting enrichment in clusters 2 and 3.
+
+For sage we're seeing pretty good enrichment in clusters 2 and 3. There's a little bleed over in clusters 7 and 5. Cluster 2 is split out on the tSNE map, which is easiest to visualize in the `pointsAsNumbers` tab (to the right of cluster 0). I would say that sage is acting as a good marker of clusters 2 and 3.
+
+```{r sage}
+mdHeader("All clusters", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "sage",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "sage",
+    dark = FALSE,
+    color = light_color)
+mdHeader("pointsAsNumbers", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "sage",
+    pointsAsNumbers = TRUE)
+
+ident2 <- SubsetData(seurat, ident.use = 2)
+mdHeader("Cluster 2", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    ident2,
+    genes = "sage",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    ident2,
+    genes = "sage",
+    dark = FALSE,
+    color = light_color)
+
+ident3 <- SubsetData(seurat, ident.use = 3)
+mdHeader("Cluster 3", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    ident3,
+    genes = "sage",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    ident3,
+    genes = "sage",
+    dark = FALSE,
+    color = light_color)
+```
+
+
+
+# toy {.tabset}
+
+Here we're expecting enrichment in cluster 4.
+
+For toy, I would say there's a fair amount of promiscuity in the clusters. We're seeing some marking in 4, but there's a decent amount of bleed over in clusters 6, 7, and maybe also 3, 5. I would say that toy isn't tight for 4 but it does look enriched there relative to the other clusters.
+
+```{r toy}
+mdHeader("All clusters", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "toy",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "toy",
+    dark = FALSE,
+    color = light_color)
+mdHeader("pointsAsNumbers", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "toy",
+    pointsAsNumbers = TRUE)
+
+ident4 <- SubsetData(seurat, ident.use = 4)
+mdHeader("Cluster 4", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    ident4,
+    genes = "toy",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    ident4,
+    genes = "toy",
+    dark = FALSE,
+    color = light_color)
+```
+
+
+
+
+# l(2)k10201
+
+Here we're expecting enrichment in cluster 7.
+
+l(2)k10201 looks to be specific for cluster 7 but there's also bleed over into cluster 3.
+
+```{r l2k10201}
+mdHeader("All clusters", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "l(2)k10201",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "l(2)k10201",
+    dark = FALSE,
+    color = light_color)
+mdHeader("pointsAsNumbers", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "l(2)k10201",
+    pointsAsNumbers = TRUE)
+
+ident7 <- SubsetData(seurat, ident.use = 7)
+mdHeader("Cluster 7", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    ident7,
+    genes = "l(2)k10201",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    ident7,
+    genes = "l(2)k10201",
+    dark = FALSE,
+    color = light_color)
+```
+
+
+
+# fs(1)h
+
+Here we're expecting enrichment in cluster 5.
+
+fs(1)h expression is somewhat promiscuous across the clusters and not that tight for 5. I would say this gene isn't specific enough on its own to ID 5 as an expected cell type. If there's a way we can include an additional marker or markers, then maybe we can make that call.
+
+```{r fs1h}
+mdHeader("All clusters", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "fs(1)h",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "fs(1)h",
+    dark = FALSE,
+    color = light_color)
+mdHeader("pointsAsNumbers", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "fs(1)h",
+    pointsAsNumbers = TRUE)
+
+mdHeader("Cluster 5", level = 2, tabset = TRUE)
+ident5 <- SubsetData(seurat, ident.use = 5)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    ident5,
+    genes = "fs(1)h",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    ident5,
+    genes = "fs(1)h",
+    dark = FALSE,
+    color = light_color)
+```
+
+
+
+
+# Pdp1
+
+Here we're expecting enrichment in cluster 9.
+
+The specificity of Pdp1 here also isn't tight. We're seeing some expression in cluster 9 but it's pretty promiscuous across the other clusters and doesn't seem to be all that specific to 9.
+
+```{r Pdp1}
+mdHeader("All clusters", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "Pdp1",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "Pdp1",
+    dark = FALSE,
+    color = light_color)
+mdHeader("pointsAsNumbers", level = 3)
+plotMarkerTSNE(
+    seurat,
+    genes = "Pdp1",
+    pointsAsNumbers = TRUE)
+
+ident9 <- SubsetData(seurat, ident.use = 9)
+mdHeader("Cluster 9", level = 2, tabset = TRUE)
+mdHeader("Dark", level = 3)
+plotMarkerTSNE(
+    ident9,
+    genes = "Pdp1",
+    dark = TRUE,
+    color = dark_color)
+mdHeader("Light", level = 3)
+plotMarkerTSNE(
+    ident9,
+    genes = "Pdp1",
+    dark = FALSE,
+    color = light_color)
+```
+
+
+
+```{r footer, child="_footer.Rmd", eval=file.exists("_footer.Rmd")}
+```

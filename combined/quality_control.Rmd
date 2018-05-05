@@ -1,0 +1,313 @@
+---
+title: "Quality Control"
+author: "`r getOption('author')`"
+date: "`r Sys.Date()`"
+bibliography: bibliography.bib
+params:
+    bcb_file: "data/2018-05-04/bcb.rda"
+    min_genes: 100
+    max_genes: !r Inf
+    max_mito_ratio: 0.25
+    min_novelty: 0.85
+    min_cells_per_gene: 10
+    data_dir: !r file.path("data", Sys.Date())
+---
+
+```{r setup, cache=FALSE, message=FALSE}
+# Last modified 2018-05-04
+bcbioSingleCell::prepareSingleCellTemplate()
+source("_setup.R")
+
+# Load bcbioSingleCell object
+bcb_name <- load(params$bcb_file)
+bcb <- get(bcb_name, inherits = FALSE)
+stopifnot(is(bcb, "bcbioSingleCell"))
+invisible(validObject(bcb))
+```
+
+```{r header, child="_header.Rmd"}
+```
+
+
+
+```{r sample_data}
+sampleData(bcb, return = "data.frame")
+```
+
+[bcbio][] run data was imported from **`r metadata(bcb)$uploadDir`**.
+
+
+
+# Quality control metrics
+
+## Reads per cell {.tabset}
+
+These are counts of how many reads are assigned to a given cellular barcode. It is normal for single cell RNA-seq data to contain a large number of low complexity barcodes. The bcbio pipeline filters out most of these barcodes, and here we have applied a threshold cutoff of a minimum of `r metadata(bcb)$cellularBarcodeCutoff` reads per cell. The unfiltered read count distributions are shown here.
+
+### ECDF
+
+An empirical distribution function (ECDF) plot will show the frequency distribution of the reads per cell. You can see that the vast majority of low complexity barcodes plateau at a read depth below 1000 reads per cell.
+
+```{r plot_reads_per_cell_ecdf}
+plotReadsPerCell(
+    object = bcb,
+    geom = "ecdf",
+    interestingGroups = "sampleName"
+)
+```
+
+### Ridgeline
+
+Alternatively, with a ridgeline plot, we can easily determine that there are a lot of low complexity barcodes in this dataset that need to be removed prior to clustering. You can see in this plot that the majorify of cellular barcodes from the `r metadata(bcb)$umiType` platform have a low read depth.
+
+```{r plot_reads_per_cell_ridgeline}
+plotReadsPerCell(
+    object = bcb,
+    geom = "ridgeline",
+    interestingGroups = "sampleName"
+)
+```
+
+### Histogram
+
+For high quality data, the proportional histogram should contain a single large peak that represents cells that were encapsulated. If we see a strong shoulder, or a bimodal distribution of the cells, that can indicate a couple problems. It might be that there is free floating RNA, which happens when cells are dying. It could also be that there are a set of cells that failed for some reason. Finally, it could also be that there are biologically different types of cells, and one type is much smaller than the other. If this is the case we would expect to see less RNA being sequenced from the smaller cells.
+
+It looks like there a lot of low complexity barcodes that need to be filtered out, but we can see cells with a usable read depth of at least 10,000 (10^4) reads per cell.
+
+```{r plot_reads_per_cell_histogram}
+plotReadsPerCell(
+    object = bcb,
+    geom = "histogram",
+    interestingGroups = "sampleName"
+)
+```
+
+
+## UMI counts per cell {.tabset}
+
+Now let's assess the distribution of unique molecular identifier (UMI)-deconvoluted counts per cell. In general, the distributions should be relatively uniform per sample.
+
+```{r plot_umis_per_cell_histogram}
+plotUMIsPerCell(bcb, geom = "histogram")
+```
+
+Now let's rank cellular barcodes based on their UMI count per cell. Note that the scale here is log10. Refer to the `DropletUtils::barcodeRanks()` documentation or the [DropletUtils vignette](https://www.bioconductor.org/packages/3.7/bioc/vignettes/DropletUtils/inst/doc/DropletUtils.html) for more information (see "Computing barcode ranks" section).
+
+The knee and inflection points on the curve here help distinguish the UMI threshold between empty droplets with little RNA and cell-containing droplets with much more RNA. The knee point is more sensitive to noise, and we generally recommend starting with the inflection point for filtering because it is more conservative. 
+
+```{r barcode_ranks}
+plotBarcodeRanks(bcb)
+```
+
+Let's view these UMI cutoffs per sample on a single ECDF plot.
+
+```{r plot_umis_per_cell_ecdf}
+plotUMIsPerCell(
+    object = bcb,
+    geom = "ecdf",
+    interestingGroups = "sampleName",
+    point = "inflection"
+)
+```
+
+Note that uninjured control 1 (from the blood1 pilot) looks to be of lower quality than the samples from blood2 and blood3.
+
+
+## UMI filtering
+
+Let's apply this step first and then proceed to evaluating gene detection, mitocondrial transcript abundance, and novelty scores.
+
+```{r filter_umis_by_inflection}
+ranks <- barcodeRanksPerSample(bcb)
+minUMIs <- vapply(
+    X = ranks,
+    FUN = function(x) {
+        as.integer(x[["inflection"]])
+    },
+    FUN.VALUE = integer(1L)
+)
+print(minUMIs)
+bcb <- filterCells(bcb, minUMIs = minUMIs)
+```
+
+Let's take a look at the UMI per cell distributions after this filtering step. Note that we haven't applied very strict filtering here — we're going to cut off the "low quality" cells based on the gene detection rate, novelty score, and mitochondrial abundance.
+
+```{r plot_umis_per_cell_postfilter}
+plotUMIsPerCell(
+    object = bcb,
+    geom = "ecdf",
+    interestingGroups = "sampleName"
+)
+plotUMIsPerCell(
+    object = bcb,
+    geom = "histogram",
+    interestingGroups = "sampleName"
+)
+```
+
+
+
+## Genes detected per cell {.tabset}
+
+Here by "detected", we mean genes with a non-zero count measurement per cell. Seeing gene detection in the range of `500`-`5000` is normal for most single-cell experiments.
+
+Note that the dataset has a lower than usual gene detection rate overall, which is likely biological. This seems to be fairly consistent across samples however, so we'll lower our gene threshold down to `r params$min_genes` genes per cell. Most of the cell filtering is comes at the novelty and mito steps instead (see below).
+
+Sterile injury 2 has a very low gene detection rate, and it looks like we'll want to discard this sample from the final dataset.
+
+```{r plot_genes_per_cell}
+markdownHeader("ecdf", level = 3)
+plotGenesPerCell(
+    object = bcb,
+    geom = "ecdf",
+    min = min(params$min_genes),
+    max = max(params$max_genes)
+)
+
+markdownHeader("histogram", level = 3)
+plotGenesPerCell(
+    object = bcb,
+    geom = "histogram",
+    min = min(params$min_genes),
+    max = max(params$max_genes)
+)
+
+markdownHeader("violin", level = 3)
+plotGenesPerCell(
+    object = bcb,
+    geom = "violin",
+    min = min(params$min_genes),
+    max = max(params$max_genes)
+)
+```
+
+
+## UMIs vs. genes detected
+
+If we graph out the total number of UMI counts per cell vs. the genes detected per cell, we can assess whether there is a large population of low quality cells with low counts and/or gene detection.
+
+```{r plot_umis_vs_genes}
+plotUMIsVsGenes(bcb)
+```
+
+
+## Novelty {.tabset}
+
+Another way to QC the data is to look for less novelty, that is cells that have less genes detected per count than other cells. We can see the samples where we sequenced each cell less have a higher overall novelty, that is because we have not started saturated the sequencing for any given gene for these samples. Outlier cells in these samples might be cells that we have a less complex RNA species than other cells. Sometimes we can detect contamination with low complexity cell types like red blood cells via this metric.
+
+This metric is very useful for removing "low complexity" cells. This is the primary metric we're using to trash low quality cells.
+
+Sterile injury 2 and injured control are pretty low quality, and most of the cells will be removed. We'll discard these from the final sample set.
+
+```{r plot_novelty}
+markdownHeader("ecdf", level = 3)
+plotNovelty(
+    object = bcb,
+    geom = "ecdf",
+    min = min(params$min_novelty)
+)
+
+markdownHeader("histogram", level = 3)
+plotNovelty(
+    object = bcb,
+    geom = "histogram",
+    min = min(params$min_novelty)
+)
+
+markdownHeader("violin", level = 3)
+plotNovelty(
+    object = bcb,
+    geom = "violin",
+    min = min(params$min_novelty)
+)
+```
+
+
+## Mitochondrial abundance {.tabset}
+
+We evaluate overall mitochondrial gene expression as a biomarker of cellular stress during sample preparation.
+
+```{r plot_mito_ratio}
+markdownHeader("ecdf", level = 3)
+plotMitoRatio(
+    object = bcb,
+    geom = "ecdf",
+    max = max(params$max_mito_ratio)
+)
+
+markdownHeader("histogram", level = 3)
+plotMitoRatio(
+    object = bcb,
+    geom = "histogram",
+    max = max(params$max_mito_ratio)
+)
+
+markdownHeader("violin", level = 3)
+plotMitoRatio(
+    object = bcb,
+    geom = "violin",
+    max = max(params$max_mito_ratio)
+)
+```
+
+
+
+# FACS sample
+
+We're splitting the FACS sorted sample out separately prior to filtering.
+
+```{r facs}
+facs <- selectSamples(bcb, facs = TRUE)
+saveData(facs, dir = params$data_dir)
+```
+
+
+
+# Censor samples
+
+```{r censor_samples}
+# Censoring sterile injury 2 and uninjured control 1.
+# Also removing the FACS sample (see above).
+censor <- c(
+    "FACS sorted",
+    "sterile injury 2",
+    "uninjured control 1"
+)
+keep <- sort(setdiff(sampleNames(bcb), censor))
+# Consider refiltering the cells per gene here
+bcb_censor <- selectSamples(bcb, sampleName = keep)
+saveData(bcb_censor, dir = params$data_dir)
+```
+
+
+
+# Filter cells
+
+```{r filter_cells}
+bcb_filtered <- filterCells(
+    object = bcb_censor,
+    minGenes = params$min_genes,
+    maxGenes = params$max_genes,
+    maxMitoRatio = params$max_mito_ratio,
+    minNovelty = params$min_novelty,
+    minCellsPerGene = params$min_cells_per_gene
+)
+saveData(bcb_filtered, dir = params$data_dir)
+```
+
+```{r}
+plotCellCounts(bcb_filtered)
+```
+
+```{r plot_filtered_qc, results="asis"}
+plotQC(
+    object = bcb_filtered,
+    return = "markdown",
+    headerLevel = 2
+)
+```
+
+
+
+```{r footer, child="_footer.Rmd"}
+```
