@@ -1,9 +1,1 @@
-# Overview
-
-- Primary Investigator: [Norbert Perrimon](mailto:perrimon@genetics.med.harvard.edu)
-- Researcher: [Sudhir Tattikota](mailto:sudhir_gt@hms.harvard.edu)
-- Experiment: blood4: *Drosophila* blood immune cell profiling with single-cell RNA-seq
-
-
-
-* * *
+../_header.Rmd
