@@ -4,7 +4,7 @@ author: "`r getOption('author')`"
 date: "`r Sys.Date()`"
 bibliography: bibliography.bib
 params:
-    bcb_file: "data/2018-05-14/bcb.rda"
+    bcb_file: "data/2018-05-16/bcb.rda"
     min_umis: 100
     max_umis: !r Inf
     min_genes: 100
@@ -16,7 +16,7 @@ params:
 ---
 
 ```{r setup, cache=FALSE, message=FALSE}
-# Last modified 2018-05-14
+# Last modified 2018-05-16
 bcbioSingleCell::prepareSingleCellTemplate()
 source("_setup.R")
 
@@ -83,7 +83,7 @@ Note that uninjured control 1 (from the blood1 pilot) looks to be of lower quali
 ## ECDF
 
 ```{r plot_umis_per_cell_ecdf}
-plotUMIsPerCell(bcb, geom = "ecdf")
+plotUMIsPerCell(bcb, geom = "ecdf", point = "knee")
 ```
 
 
@@ -326,7 +326,7 @@ plotGenesPerCell(
 
 # Filter cells by gene count
 
-Let's threshold all samples except `sterile injury 4` by a cutoff of `r params$min_genes` genes per cell. We're thresholding sterile injury 4 at a higher cutoff, to get the number of cells in the ballpark of 3000.
+Let's threshold all samples except sterile injury 4 by a cutoff of `r params$min_genes` genes per cell. We're thresholding sterile injury 4 at a higher cutoff, to get the number of cells in the ballpark of 3000.
 
 ```{r filter_cells_by_gene}
 min_genes <- c(
@@ -364,12 +364,12 @@ plotQC(
 
 # Stricter filtering by UMI knee point
 
-```{r bcb_knee}
+```{r filter_cells_by_umi_knee}
 bcb_filtered_knee <- bcb_original %>%
     selectSamples(sampleName = keep) %>%
     filterCells(
         minUMIs = "knee",
-        minGenes = params$min_genes,
+        minGenes = min_genes,
         maxGenes = params$max_genes,
         maxMitoRatio = params$max_mito_ratio,
         minNovelty = params$min_novelty,
@@ -388,9 +388,56 @@ plotQC(
 
 
 
+# Split high and low quality replicates
+
+These samples have a much higher overall gene detection rate:
+
+- sterile injury 1
+- sterile injury 4
+- uninjured control 2
+- uninjured control 3
+
+Luckily, there are at least 2 replicates from both conditions of interest, so we can use these as our high confidence set of samples.
+
+```{r filtered_high_conf}
+bcb_filtered_high_conf <- selectSamples(
+    object = bcb_filtered_knee,
+    sampleName = c(
+        "sterile injury 1",
+        "sterile injury 4",
+        "uninjured control 2",
+        "uninjured control 3"
+    )
+) %>%
+    # Apply consistent 650 minimum gene cutoff (see above)
+    filterCells(minGenes = 650)
+```
+
+The lower confidence replicates with poorer gene detection are:
+
+- sterile injury 3
+- uninured control 4
+- uninjured control 5
+
+```{r filtered_low_conf}
+bcb_filtered_low_conf <- selectSamples(
+    object = bcb_filtered_knee,
+    sampleName = c(
+        "sterile injury 3",
+        "uninjured control 4",
+        "uninjured control 5"
+    )
+)
+```
+
+
+
 ```{r save}
 saveData(
-    bcb_filtered, bcb_filtered_knee,
+    bcb_filtered,
+    bcb_filtered_knee,
+    bcb_filtered_high_conf,
+    bcb_filtered_low_conf,
     dir = params$data_dir
 )
 ```
