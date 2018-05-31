@@ -4,16 +4,21 @@ author: "`r getOption('author')`"
 date: "`r Sys.Date()`"
 bibliography: bibliography.bib
 params:
-    seurat_file: "data/2018-05-16/bcb_filtered_high_conf_seurat.rda"
-    all_markers_file: "data/2018-05-16/bcb_filtered_high_conf_seurat_markers_wilcoxon.rda"
+    seurat_file: "data/2018-05-30/blood2_CTTAATAG_seurat.rda"
+    all_markers_file: NULL
     cell_type_markers_file: "markers.csv"
     organism: "Drosophila melanogaster"
+    dark: FALSE
     data_dir: !r file.path("data", Sys.Date())
     results_dir: !r file.path("results", Sys.Date(), "markers")
 ---
 
 ```{r setup, cache=FALSE, message=FALSE}
-# Last modified 2018-05-16
+# Last modified 2018-05-31
+
+# Highly recommended to run this template on an HPC cluster
+# stopifnot(detectHPC())
+
 bcbioSingleCell::prepareSingleCellTemplate()
 source("_setup.R")
 
@@ -44,10 +49,9 @@ if (!is.null(params$cell_type_markers_file)) {
         gene2symbol = gene2symbol
     )
 } else {
-    if (is.null(params$organism)) {
-        organism <- detectOrganism(seurat)
-    }
-    cell_type_markers <- bcbioSingleCell::cellTypeMarkers[[camel(organism)]]
+    stopifnot(!is.null(params$organism))
+    cell_type_markers <- bcbioSingleCell::cellTypeMarkers %>%
+        .[[camel(params$organism)]]
 }
 stopifnot(is.data.frame(cell_type_markers))
 assignAndSaveData(
@@ -97,12 +101,9 @@ The `min.pct` argument requires a gene to be detected at a minimum percentage in
 Seurat has multiple tests for differential expression which can be set with the `test.use` parameter. Currently it defaults to Wilcoxon rank sum test ("`wilcox`"), which tends to overreport significant markers. Instead we currently recommend using MAST (Finak et al, Genome Biology, 2015) or DESeq2 (Love et al, Genome Biology, 2014).
 
 ```{r find_all_markers, cache=FALSE, results="hide"}
-# MAST and DESeq2 are recommended over Wilcoxon rank sum test.
-
-# This step can a long time to run and shouldn't be cached.
-# We recommend running this step outside of R Markdown and then loading the
-# presaved R data file instead.
-
+# MAST and DESeq2 are recommended over Wilcoxon rank sum test (default). This
+# step can a long time to run and shouldn't be cached. We recommend running this
+# step outside of R Markdown and then loading the presaved R data file instead.
 if (!exists("all_markers", inherits = FALSE)) {
     all_markers <- FindAllMarkers(seurat)
     # Save the original, unmodified data.frame as a backup
@@ -134,16 +135,16 @@ write_csv(
 # Top markers per cluster {.tabset}
 
 ```{r top_markers}
-top_markers <- topMarkers(all_markers, n = 10)
+top_markers <- topMarkers(all_markers)
 top_markers
 ```
 
 ```{r plot_top_markers, results="asis"}
 plotTopMarkers(
     object = seurat,
-    topMarkers = top_markers,
+    markers = top_markers,
     headerLevel = 2,
-    dark = TRUE
+    dark = params$dark
 )
 ```
 
@@ -153,15 +154,14 @@ plotTopMarkers(
 
 Heatmaps can also be a good way to examine heterogeneity within/between clusters. The `DoHeatmap()` function will generate a heatmap for given cells and genes. In this case, we are plotting the top markers for each cluster.
 
-```{r do_heatmap}
-# `slim.col.label` should display the identity class once for each group, but
-# doesn't appear to be working in Seurat v2.1 (updated 2017-11-25).
+```{r do_heatmap, fig.width=10, fig.height=20}
+colors <- plasma(n = 3, begin = 0, end = 1)
 DoHeatmap(
     object = seurat,
-    genes.use = top_markers$rowname,
-    col.low = viridis(3)[[1]],
-    col.mid = viridis(3)[[2]],
-    col.high = viridis(3)[[3]],
+    genes.use = unique(top_markers$rowname),
+    col.low = colors[[1]],
+    col.mid = colors[[2]],
+    col.high = colors[[3]],
     remove.key = FALSE,
     rotate.key = TRUE,
     slim.col.label = TRUE
@@ -172,7 +172,7 @@ DoHeatmap(
 
 # Known cell type markers {.tabset}
 
-```{r known_markers_detected, results="asis"}
+```{r known_markers_detected}
 known_markers_detected <- knownMarkersDetected(
     object = all_markers,
     known = cell_type_markers
@@ -190,7 +190,7 @@ plotKnownMarkersDetected(
     object = seurat,
     markers = known_markers_detected,
     headerLevel = 2,
-    dark = TRUE
+    dark = params$dark
 )
 ```
 
@@ -213,7 +213,7 @@ plotCellTypesPerCluster(
     object = seurat,
     cellTypesPerCluster = cell_types_per_cluster,
     headerLevel = 2,
-    dark = TRUE
+    dark = params$dark
 )
 ```
 
