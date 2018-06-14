@@ -1,13 +1,15 @@
 # Template for scRNA-seq using Illumina prepared samples
 #
 # Drosophila melanogaster
-# 2018-04-30
+# 2018-06-14
 #
 # FlyBase
 # FASTA: seqcloud fasta dmelanogaster cdna
 # GTF: seqcloud gtf dmelanogaster
 #
 # NOTE: genome_build is specific to bcbio install
+#
+# Added EGFP, gal4 transgenes to FASTA and GTF files
 ---
 details:
   - analysis: scRNA-seq
@@ -19,8 +21,8 @@ details:
       sample_barcodes: /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/combined/config/sample_barcodes_reverse_complement/bloodXXX.txt
       # singlecell_quantifier: rapmap
       transcriptome_fasta: /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/annotations/flybase/FB2018_02/dmel-transcriptome-r6.21-spike.fasta
-      transcriptome_gtf: /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/annotations/flybase/FB2018_02/dmel-all-r6.21.gtf
+      transcriptome_gtf: /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/annotations/flybase/FB2018_02/dmel-all-r6.21-spike.gtf
       umi_type: harvard-indrop-v3
 upload:
-  dir: /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/combined/bcbio/2018-04-30
+  dir: /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/combined/bcbio/2018-06-14
 

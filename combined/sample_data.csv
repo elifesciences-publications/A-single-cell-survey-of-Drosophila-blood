@@ -1,0 +1,8 @@
+sampleID,sampleName,treatment,replicate,facs,sampleNameOriginal
+blood2_CTTAATAG,sterile injury 1,sterile injury,1,FALSE,PC1
+blood3_CTTAATAG,sterile injury 3,sterile injury,3,FALSE,PC 1.1
+blood3_TCGCATAA,sterile injury 4,sterile injury,4,FALSE,PC 2.1
+blood2_TCTTACGC,uninjured control 2,uninjured control,2,FALSE,UNS OP
+blood2_TAAGGCTC,uninjured control 3,uninjured control,3,FALSE,UC
+blood3_ATAGCCTT,uninjured control 4,uninjured control,4,FALSE,UC 2.1
+blood3_TAAGGCTC,uninjured control 5,uninjured control,5,FALSE,UC 1.1

@@ -13,4 +13,4 @@
 #SBATCH --output=jobid_%j.out          # File to which STDOUT will be written, including job ID
 #SBATCH --mail-type=ALL                # Type of email notification (BEGIN, END, FAIL, ALL)
 
-bcbio_nextgen.py ../config/bcbio.yaml -n 100 -t ipython -s slurm -q medium -r t=3-00:00 --retries 3 --timeout 1000
+bcbio_nextgen.py ../config/bcbio.yaml -n 50 -t ipython -s slurm -q medium -r t=3-00:00 --retries 3 --timeout 1000
