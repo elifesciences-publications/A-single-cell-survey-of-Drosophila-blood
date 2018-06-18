@@ -4,7 +4,7 @@ author: "`r getOption('author')`"
 date: "`r Sys.Date()`"
 bibliography: bibliography.bib
 params:
-    seurat_file: "data/2018-05-30/blood2_CTTAATAG_seurat.rda"
+    seurat_file: "data/2018-06-18/seurat.rda"
     all_markers_file: NULL
     cell_type_markers_file: "markers.csv"
     organism: "Drosophila melanogaster"
@@ -14,7 +14,7 @@ params:
 ---
 
 ```{r setup, cache=FALSE, message=FALSE}
-# Last modified 2018-05-31
+# Last modified 2018-06-18
 
 # Highly recommended to run this template on an HPC cluster
 # stopifnot(detectHPC())

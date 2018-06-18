@@ -4,19 +4,20 @@ author: "`r getOption('author')`"
 date: "`r Sys.Date()`"
 bibliography: bibliography.bib
 params:
-    bcb_file: "data/2018-05-16/bcb_filtered.rda"
+    bcb_file: "data/2018-06-18/bcb_filtered.rda"
     seurat_name: "seurat"
     pc_compute: 20
     dims_use: FALSE
     vars_to_regress: !r c("nUMI", "mitoRatio", "S.Score", "G2M.Score")
-    resolution: 1
+    resolution_calc: !r seq(from = 0.4, to = 1.2, by = 0.4)
+    resolution_use: 0.4
     dark: FALSE
     umap: TRUE
     data_dir: !r file.path("data", Sys.Date())
 ---
 
 ```{r setup, cache=FALSE, message=FALSE}
-# Last modified 2018-05-29
+# Last modified 2018-06-18
 
 # Highly recommended to run this template on an HPC cluster
 # stopifnot(detectHPC())
@@ -24,10 +25,10 @@ params:
 bcbioSingleCell::prepareSingleCellTemplate()
 source("_setup.R")
 
-# Load bcbioSingleCell object
+# Load SingleCellExperiment object
 bcb_name <- load(params$bcb_file)
 bcb <- get(bcb_name, inherits = FALSE)
-stopifnot(is(bcb, "bcbioSingleCell"))
+stopifnot(is(bcb, "SingleCellExperiment"))
 invisible(validObject(bcb))
 
 # Vector to use for dimensional reduction plot looping
@@ -224,15 +225,16 @@ seurat <- seurat %>%
 In particular, `PCHeatmap()` allows for easy exploration of the primary sources of heterogeneity in a dataset, and can be useful when trying to decide which PCs to include for further downstream analyses. Both cells and genes are ordered according to their PCA scores. Setting `cells.use` to a number plots the "extreme" cells on both ends of the spectrum, which dramatically speeds plotting for large datasets. Though clearly a supervised analysis, we find this to be a valuable tool for exploring correlated gene sets.
 
 ```{r pc_heatmap}
+colors <- plasma(n = 3, begin = 0, end = 1)
 invisible(mapply(
     FUN = PCHeatmap,
     pc.use = 1:params$pc_compute,
     MoreArgs = list(
         object = seurat,
         col.use = CustomPalette(
-            low = viridis(3)[[3]],  # yellow
-            mid = viridis(3)[[2]],  # green
-            high = viridis(3)[[1]]  # purple
+            low = colors[[1]],
+            mid = colors[[2]],
+            high = colors[[3]]
         ),
         do.balanced = TRUE,
         label.columns = FALSE,
@@ -309,15 +311,13 @@ Regarding the value of the `resolution` argument, use a value < 1 if you want to
 seurat <- FindClusters(
     object = seurat,
     dims.use = dims_use,
-    k.param = 30,
-    force.recalc = TRUE,
-    print.output = TRUE,
-    resolution = params$resolution,
-    save.SNN = TRUE
+    resolution = params$resolution_calc,
+    save.SNN = TRUE,
+    force.recalc = TRUE
 )
 ```
 
-A useful feature in [Seurat][] v2.0 is the ability to recall the parameters that were used in the latest function calls for commonly used functions. For FindClusters, we provide the function PrintFindClustersParams to print a nicely formatted formatted summary of the parameters that were chosen.
+A useful feature in [Seurat][] v2.0 is the ability to recall the parameters that were used in the latest function calls for commonly used functions. For `FindClusters()`, the authors provide the function `PrintFindClustersParams()` to print a nicely formatted formatted summary of the parameters that were chosen.
 
 ```{r print_find_clusters_params}
 PrintFindClustersParams(seurat)
@@ -325,7 +325,7 @@ PrintFindClustersParams(seurat)
 
 
 
-# Run non-linear dimensional reduction {.tabset}
+# Run non-linear dimensional reduction
 
 ## t-SNE {.tabset}
 
@@ -349,17 +349,19 @@ invisible(lapply(
     X = dim_red_groups,
     FUN = function(group) {
         markdownHeader(group, level = 3, asis = TRUE, tabset = TRUE)
-        show(plotTSNE(
-            object = seurat,
-            interestingGroups = group,
-            dark = params$dark
-        ))
-        show(plotTSNE(
-            object = seurat,
-            interestingGroups = group,
-            dark = params$dark,
-            pointsAsNumbers = TRUE
-        ))
+        lapply(
+            X = params$resolution_calc,
+            FUN = function(res) {
+                res_col <- paste("res", res, sep = ".")
+                markdownHeader(res_col, level = 4, asis = TRUE, tabset = TRUE)
+                seurat <- SetAllIdent(seurat, id = res_col)
+                show(plotTSNE(
+                    object = seurat,
+                    interestingGroups = group,
+                    dark = params$dark
+                ))
+            }
+        )
     }
 ))
 ```
@@ -373,7 +375,7 @@ invisible(lapply(
 2. The Riemannian metric is locally constant (or can be approximated as such).
 3. The manifold is locally connected.
 
-[UMAP][] visualization requires the [python][] dependency umap-learn. We recommend installing this with [conda][].
+[UMAP][] visualization requires the [Python][] dependency umap-learn. We recommend installing this with [conda][].
 
 ```{bash, eval=FALSE}
 conda install -c conda-forge umap-learn
@@ -388,17 +390,19 @@ invisible(lapply(
     X = dim_red_groups,
     FUN = function(group) {
         markdownHeader(group, level = 3, asis = TRUE, tabset = TRUE)
-        show(plotUMAP(
-            object = seurat,
-            interestingGroups = group,
-            dark = params$dark
-        ))
-        show(plotUMAP(
-            object = seurat,
-            interestingGroups = group,
-            dark = params$dark,
-            pointsAsNumbers = TRUE
-        ))
+        lapply(
+            X = params$resolution_calc,
+            FUN = function(res) {
+                res_col <- paste("res", res, sep = ".")
+                markdownHeader(res_col, level = 4, asis = TRUE, tabset = TRUE)
+                seurat <- SetAllIdent(seurat, id = res_col)
+                show(plotUMAP(
+                    object = seurat,
+                    interestingGroups = group,
+                    dark = params$dark
+                ))
+            }
+        )
     }
 ))
 ```
@@ -406,26 +410,43 @@ invisible(lapply(
 
 ## PCA {.tabset}
 
-Note that t-SNE/UMAP is not PCA! The measurement of distance in a t-SNE plot is difficult to interpret, and is most helpful for the relationships of close neighbors. To better infer separation distance between the putative clusters, let's reapply PCA.
+Note that t-SNE/UMAP is not PCA! The measurement of distance in a t-SNE plot is difficult to interpret, and is most helpful for the relationships of close neighbors. To better infer separation distance between the putative clusters, let's visualizing using PCA.
 
 ```{r plot_pca, results="asis"}
 invisible(lapply(
     X = dim_red_groups,
     FUN = function(group) {
         markdownHeader(group, level = 3, asis = TRUE, tabset = TRUE)
-        show(plotPCA(
-            object = seurat,
-            interestingGroups = group,
-            dark = params$dark
-        ))
-        show(plotPCA(
-            object = seurat,
-            interestingGroups = group,
-            dark = params$dark,
-            pointsAsNumbers = TRUE
-        ))
+        lapply(
+            X = params$resolution_calc,
+            FUN = function(res) {
+                res_col <- paste("res", res, sep = ".")
+                markdownHeader(res_col, level = 4, asis = TRUE, tabset = TRUE)
+                seurat <- SetAllIdent(seurat, id = res_col)
+                show(plotPCA(
+                    object = seurat,
+                    interestingGroups = group,
+                    dark = params$dark
+                ))
+            }
+        )
     }
 ))
+```
+
+
+
+# Pick resolution to use
+
+Pick the resolution to use, if multiple are stashed.
+
+```{r resolution_use}
+if (!is.null(params$resolution_use)) {
+    seurat <- SetAllIdent(
+        object = seurat,
+        id = paste("res", params$resolution_use, sep = ".")
+    )
+}
 ```
 
 

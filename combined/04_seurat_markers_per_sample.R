@@ -1,9 +1,8 @@
-# 2018-05-31
 library(bcbioSingleCell)
 library(Seurat)
 library(rmarkdown)
 
-existing_data_dir <- "data/2018-05-30"
+existing_data_dir <- "data/2018-06-18"
 seurat_stems <- c(
     "blood2_CTTAATAG",
     "blood2_TAAGGCTC",
@@ -11,7 +10,9 @@ seurat_stems <- c(
     "blood3_ATAGCCTT",
     "blood3_CTTAATAG",
     "blood3_TAAGGCTC",
-    "blood3_TCGCATAA"
+    "blood3_TCGCATAA",
+    "injured",
+    "uninjured"
 ) %>%
     paste("seurat", sep = "_")
 seurat_files <- file.path(
