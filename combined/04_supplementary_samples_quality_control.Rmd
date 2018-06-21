@@ -1,0 +1,63 @@
+---
+title: "FACS and sepsis samples for supplement"
+author: "`r getOption('author')`"
+date: "`r Sys.Date()`"
+---
+
+```{r setup, cache=FALSE, message=FALSE}
+source("_setup.R")
+load("data/2018-06-18/bcb.rda")
+sampleNames(bcb)
+```
+
+```{r header, child="_header.Rmd"}
+```
+
+Select only the FACS and sepsis samples
+
+```{r supp}
+supp <- selectSamples(bcb, sampleName = c("FACS", "sepsis"))
+```
+
+Visualize our filtering cutoffs.
+
+```{r qc_prefilter}
+plotReadsPerCell(supp, geom = "histogram")
+plotUMIsPerCell(supp, geom = "histogram", min = 2000)
+plotGenesPerCell(supp, geom = "histogram", min = 1000)
+plotNovelty(supp, geom = "violin", min = 0.8)
+plotMitoRatio(supp, geom = "histogram", max = 0.25)
+```
+
+Apply filtering cutoffs.
+
+```{r filter}
+filtered <- filterCells(
+    object = supp,
+    minUMIs = 2000,
+    minGenes = 1000,
+    minNovelty = 0.8,
+    maxMitoRatio = 0.25
+)
+```
+
+Visualize distributions after filtering.
+
+```{r qc_postfilter}
+plotCellCounts(filtered)
+plotUMIsPerCell(filtered)
+plotGenesPerCell(filtered)
+plotNovelty(filtered)
+plotMitoRatio(filtered)
+```
+
+Save the filtered FACS and sepsis sample subsets
+
+```{r save}
+facs <- selectSamples(filtered, sampleName = "FACS")
+sepsis <- selectSamples(filtered, sampleName = "sepsis")
+saveData(facs, sepsis, dir = file.path("data", Sys.Date()))
+```
+
+```{r footer, child="_footer.Rmd"}
+```

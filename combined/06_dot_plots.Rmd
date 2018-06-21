@@ -1,0 +1,58 @@
+---
+title: "Dot plots"
+author: "`r getOption('author')`"
+date: "`r Sys.Date()`"
+---
+
+```{r setup, cache=FALSE, message=FALSE}
+source("_setup.R")
+library(readxl)
+opts_chunk[["set"]](cache = FALSE)
+```
+
+```{r header, child="_header.Rmd"}
+```
+
+```{r}
+marker_genes_tbl <- read_excel("dot_plot_marker_genes.xlsx")
+```
+
+```{r loop_across_samples}
+seurat_files <- c(
+    # per sample
+    "injured 1" = "data/2018-06-18/blood2_CTTAATAG_seurat.rda",
+    "injured 3" = "data/2018-06-18/blood3_CTTAATAG_seurat.rda",
+    "injured 4" = "data/2018-06-18/blood3_TCGCATAA_seurat.rda",
+    "uninjured 3" = "data/2018-06-18/blood2_TAAGGCTC_seurat.rda",
+    "uninjured 4" = "data/2018-06-18/blood3_ATAGCCTT_seurat.rda",
+    "uninjured 5" = "data/2018-06-18/blood3_TAAGGCTC_seurat.rda",
+    # per treatment
+    "injured" = "data/2018-06-18/injured_seurat.rda",
+    "uninjured" = "data/2018-06-18/uninjured_seurat.rda",
+    # supplementary
+    "facs" = "data/2018-06-19/facs_seurat.rda",
+    "sepsis" = "data/2018-06-19/sepsis_seurat.rda"
+)
+stopifnot(all(file.exists(seurat_files)))
+saveData(seurat_files, dir = file.path("data", Sys.Date()))
+```
+
+```{r dot_plots, results="asis"}
+lapply(
+    X = seurat_files,
+    FUN = function(file) {
+        markdownHeader(basename(file), asis = TRUE)
+        seurat <- load(file) %>% get()
+        genes <- pull(marker_genes_tbl, geneName)
+        genes <- genes[genes %in% rownames(seurat)]
+        # bcbioSingleCell functions
+        plotMarkerTSNE(seurat, genes = "EGFP") %>% show()
+        plotDot(seurat, genes = genes) %>% show()
+        # seurat functions
+        DotPlot(seurat, genes.plot = genes, plot.legend = TRUE)
+    }
+)
+```
+
+```{r footer, child="_footer.Rmd"}
+```
