@@ -4,16 +4,19 @@ library(rmarkdown)
 
 existing_data_dir <- "data/2018-06-18"
 seurat_stems <- c(
-    "blood2_CTTAATAG",
-    "blood2_TAAGGCTC",
-    "blood3_ATAGCCTT",
-    "blood3_CTTAATAG",
-    "blood3_TAAGGCTC",
-    "blood3_TCGCATAA",
-    "injured",
-    "uninjured"
-) %>%
-    paste("seurat", sep = "_")
+    # per sample
+    "blood2_CTTAATAG_seurat",
+    "blood2_TAAGGCTC_seurat",
+    "blood3_ATAGCCTT_seurat",
+    "blood3_CTTAATAG_seurat",
+    "blood3_TAAGGCTC_seurat",
+    "blood3_TCGCATAA_seurat",
+    # per treatment
+    "injured_seurat",
+    "uninjured_seurat",
+    # all samples
+    "seurat"
+)
 seurat_files <- file.path(
     existing_data_dir,
     paste0(seurat_stems, ".rda")

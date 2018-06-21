@@ -8,6 +8,7 @@ date: "`r Sys.Date()`"
 source("_setup.R")
 library(readxl)
 opts_chunk[["set"]](cache = FALSE)
+load("data/2018-06-21/seurat_files.rda")
 ```
 
 ```{r header, child="_header.Rmd"}
@@ -15,26 +16,7 @@ opts_chunk[["set"]](cache = FALSE)
 
 ```{r}
 marker_genes_tbl <- read_excel("dot_plot_marker_genes.xlsx")
-```
-
-```{r loop_across_samples}
-seurat_files <- c(
-    # per sample
-    "injured 1" = "data/2018-06-18/blood2_CTTAATAG_seurat.rda",
-    "injured 3" = "data/2018-06-18/blood3_CTTAATAG_seurat.rda",
-    "injured 4" = "data/2018-06-18/blood3_TCGCATAA_seurat.rda",
-    "uninjured 3" = "data/2018-06-18/blood2_TAAGGCTC_seurat.rda",
-    "uninjured 4" = "data/2018-06-18/blood3_ATAGCCTT_seurat.rda",
-    "uninjured 5" = "data/2018-06-18/blood3_TAAGGCTC_seurat.rda",
-    # per treatment
-    "injured" = "data/2018-06-18/injured_seurat.rda",
-    "uninjured" = "data/2018-06-18/uninjured_seurat.rda",
-    # supplementary
-    "facs" = "data/2018-06-19/facs_seurat.rda",
-    "sepsis" = "data/2018-06-19/sepsis_seurat.rda"
-)
-stopifnot(all(file.exists(seurat_files)))
-saveData(seurat_files, dir = file.path("data", Sys.Date()))
+marker_genes_tbl
 ```
 
 ```{r dot_plots, results="asis"}
