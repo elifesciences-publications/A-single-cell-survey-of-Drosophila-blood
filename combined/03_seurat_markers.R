@@ -6,7 +6,6 @@ existing_data_dir <- "data/2018-06-18"
 seurat_stems <- c(
     "blood2_CTTAATAG",
     "blood2_TAAGGCTC",
-    "blood2_TCTTACGC",
     "blood3_ATAGCCTT",
     "blood3_CTTAATAG",
     "blood3_TAAGGCTC",
