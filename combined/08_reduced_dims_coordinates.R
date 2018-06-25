@@ -1,7 +1,7 @@
 library(magrittr)
 library(tools)
-library(Seurat)  # v2.3.2
-load("data/2018-06-19/seurat_files.rda")
+library(Seurat)
+load("data/2018-06-21/seurat_files.rda")
 stopifnot(all(file.exists(seurat_files)))
 results_dir <- file.path("results", Sys.Date())
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)

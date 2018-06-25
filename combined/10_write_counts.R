@@ -1,9 +1,8 @@
-library(tools)
-library(bcbioSingleCell)
+# Write raw and normalized counts per seurat object
 library(Seurat)
 load("data/2018-06-21/seurat_files.rda")
 stopifnot(all(file.exists(seurat_files)))
-results_dir <- file.path("results", Sys.Date())
+results_dir <- file.path("results", Sys.Date(), "counts")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Loop across the seurat objects and save relative cell abundance calculations
@@ -12,7 +11,6 @@ invisible(lapply(
     FUN = function(file) {
         stem <- file_path_sans_ext(basename(file))
         seurat <- load(file) %>% get()
-        interestingGroups(seurat) <- "sampleName"
 
         per_sample <- clusterCellCountsPerSample(seurat)
         write.csv(
