@@ -3,7 +3,7 @@ library(bcbioSingleCell)
 library(Seurat)
 load("data/2018-06-21/seurat_files.rda")
 stopifnot(all(file.exists(seurat_files)))
-results_dir <- file.path("results", Sys.Date())
+results_dir <- file.path("results", Sys.Date(), "relative_abundance")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Loop across the seurat objects and save relative cell abundance calculations
