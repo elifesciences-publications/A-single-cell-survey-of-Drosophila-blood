@@ -81,106 +81,144 @@ rows <- genes(ahEnsdb)  %>%
 ```{r, load-data}
 # Injured
 
+## Metadata
+## We use the metadata samples in order to choose the samples to use
+metadata_injured <- read.csv("./metadata/injured/metadata.csv",header = T)
+colnames(metadata_injured) <- gsub("barcodes","barcode",colnames(metadata_injured))
+
 ## 10x samples
 B2.data <- Read10X(data.dir = "./data/injured/10x/B2")
-pre_regressed_B2 <- CreateSeuratObject(counts = B2.data, min.cells = 10, min.features = 100, project = "10X_injured_B2")
-mito.features <- grep(pattern = "^MT-", x = rownames(x = pre_regressed_B2), value = TRUE)
-percent.mito <- Matrix::colSums(x = GetAssayData(object = pre_regressed_B2, slot = 'counts')[mito.features, ]) / Matrix::colSums(x = GetAssayData(object = pre_regressed_B2, slot = 'counts'))
-total_reads <- Matrix::colSums(GetAssayData(pre_regressed_B2, slot = "counts"))
-pre_regressed_B2[['percent.mito']] <- percent.mito
-pre_regressed_B2[['total_reads']] <- total_reads
+B2_selected_cells <- metadata_injured %>% dplyr::filter(sample == "10X_injured_B2")%>% 
+    dplyr::filter(barcode %in% colnames(B2.data))
+B2_selected_cells$barcode <- as.character(B2_selected_cells$barcode)
+selected_data <- B2.data[,B2_selected_cells$barcode]
+
+
+B2_selected_cells$sample <- droplevels(B2_selected_cells$sample) 
+pre_regressed_B2 <- CreateSeuratObject(counts = selected_data, min.cells = 10, min.features = 100, project = "10X_injured_B2")
 pre_regressed_B2$tech <- "10x"
 pre_regressed_B2$injured_st <- "injured"
 pre_regressed_B2$sample <- "B2"
 
 
 B4.data <- Read10X(data.dir = "./data/injured/10x/B4")
-pre_regressed_B4 <- CreateSeuratObject(counts = B4.data, min.cells = 10, min.features = 100, project = "10X_injured_B4")
-mito.features <- grep(pattern = "^MT-", x = rownames(x = pre_regressed_B4), value = TRUE)
-percent.mito <- Matrix::colSums(x = GetAssayData(object = pre_regressed_B4, slot = 'counts')[mito.features, ]) / Matrix::colSums(x = GetAssayData(object = pre_regressed_B4, slot = 'counts'))
-total_reads <- Matrix::colSums(GetAssayData(pre_regressed_B4, slot = "counts"))
-pre_regressed_B4[['percent.mito']] <- percent.mito
-pre_regressed_B4[['total_reads']] <- total_reads
+B4_selected_cells <- metadata_injured %>% dplyr::filter(sample == "10X_injured_B4") %>% 
+    dplyr::filter(barcode %in% colnames(B4.data))
+B4_selected_cells$sample <- droplevels(B4_selected_cells$sample) 
+B4_selected_cells$barcode <- as.character(B4_selected_cells$barcode)
+selected_data <- B4.data[,B4_selected_cells$barcode]
+
+
+pre_regressed_B4 <- CreateSeuratObject(counts = selected_data, min.cells = 10, min.features = 100, project = "10X_injured_B4")
 pre_regressed_B4$tech <- "10x"
 pre_regressed_B4$injured_st <- "injured"
 pre_regressed_B4$sample <- "B4"
 
 ## Indrop samples
-Indrop.data_inj <- read.delim("./data/injured/indrop/counts_project4.txt",header = T,row.names = 1)
-pre_regressed_Indrop_inj <- CreateSeuratObject(counts = Indrop.data_inj, min.cells = 10, min.features = 100, project = "Indrop_injured")
-#pre_regressed_Indrop_inj$orig.ident <- "Indrop_injured"
-# We use the same genes that the ones used in the 10x set
-mito_genes <- gsub("MT-","",mito.features)[gsub("MT-","",mito.features) %in% rownames(pre_regressed_Indrop_inj)] 
-percent.mito <- Matrix::colSums(x = GetAssayData(object = pre_regressed_Indrop_inj, slot = 'counts')[mito_genes, ]) / Matrix::colSums(x = GetAssayData(object = pre_regressed_Indrop_inj, slot = 'counts'))
-total_reads <- Matrix::colSums(GetAssayData(pre_regressed_Indrop_inj, slot = "counts"))
-pre_regressed_Indrop_inj[['percent.mito']] <- percent.mito
-pre_regressed_Indrop_inj[['total_reads']] <- total_reads
-pre_regressed_Indrop_inj$tech <- "Indrop"
-pre_regressed_Indrop_inj$injured_st <- "injured"
-pre_regressed_Indrop_inj$sample <- "Indrop_inj"
+Indrop.data_inj <- read.delim("./data/injured/indrop/counts_project4.txt",header = T,row.names = 1) %>% as.matrix()
+
+
+Indrop_PC1_selected_cells <- metadata_injured %>% dplyr::filter(sample == "Indrop_PC1") %>% 
+    dplyr::filter(barcode %in% colnames(Indrop.data_inj))
+Indrop_PC1_selected_cells$barcode <- as.character(Indrop_PC1_selected_cells$barcode)
+selected_data <- Indrop.data_inj[,Indrop_PC1_selected_cells$barcode]
+
+pre_regressed_Indrop_PC1 <- CreateSeuratObject(counts = selected_data, min.cells = 10, min.features = 100, project = "Indrop_PC1")
+pre_regressed_Indrop_PC1$tech <- "Indrop"
+pre_regressed_Indrop_PC1$injured_st <- "injured"
+pre_regressed_Indrop_PC1$sample <- "Indrop_PC1"
+
+
+
+Indrop_PC2_1_selected_cells <- metadata_injured %>% dplyr::filter(sample == "Indrop_PC2_1") %>% 
+    dplyr::filter(barcode %in% colnames(Indrop.data_inj))
+
+Indrop_PC2_1_selected_cells$barcode <- as.character(Indrop_PC2_1_selected_cells$barcode)
+selected_data <- Indrop.data_inj[,Indrop_PC2_1_selected_cells$barcode]
+
+pre_regressed_Indrop_PC2_1 <- CreateSeuratObject(counts = selected_data, min.cells = 10, min.features = 100, project = "Indrop_PC2_1")
+pre_regressed_Indrop_PC2_1$tech <- "Indrop"
+pre_regressed_Indrop_PC2_1$injured_st <- "injured"
+pre_regressed_Indrop_PC2_1$sample <- "Indrop_PC2_1"
+
+```
+
+
+```{r}
+# Uninjured
 
 ## Metadata
+## We use the metadata samples in order to choose the samples to use
 
-metadata_injured <- read.csv("./metadata/injured/metadata.csv",header = T)
-colnames(metadata_injured) <- gsub("barcodes","barcode",colnames(metadata_injured))
-metadata_injured$injured_st <- "injured"
-
-# Uninjured
+metadata_uninjured <- read.csv("./metadata/uninjured/metadata.csv",header = T)
+colnames(metadata_uninjured) <- gsub("barcodes","barcode",colnames(metadata_uninjured))
 
 ## 10x samples
 B1.data <- Read10X(data.dir = "./data/uninjured/10x/B1/")
-pre_regressed_B1 <- CreateSeuratObject(counts = B1.data, min.cells = 10, min.features = 100, project = "10X_uninjured_B1")
-mito.features <- grep(pattern = "^MT-", x = rownames(x = pre_regressed_B1), value = TRUE)
-percent.mito <- Matrix::colSums(x = GetAssayData(object = pre_regressed_B1, slot = 'counts')[mito.features, ]) / Matrix::colSums(x = GetAssayData(object = pre_regressed_B1, slot = 'counts'))
-total_reads <- Matrix::colSums(GetAssayData(pre_regressed_B1, slot = "counts"))
-pre_regressed_B1[['percent.mito']] <- percent.mito
-pre_regressed_B1[['total_reads']] <- total_reads
+B1_selected_cells <- metadata_uninjured %>% dplyr::filter(sample == "10X_B1")%>% 
+    dplyr::filter(barcode %in% colnames(B1.data))
+B1_selected_cells$barcode <- as.character(B1_selected_cells$barcode)
+selected_data <- B1.data[,B1_selected_cells$barcode]
+
+
+pre_regressed_B1 <- CreateSeuratObject(counts = selected_data, min.cells = 10, min.features = 100, project = "10X_uninjured_B1")
 pre_regressed_B1$tech <- "10x"
 pre_regressed_B1$injured_st <- "uninjured"
 pre_regressed_B1$sample <- "B1"
 
 
 B3.data <- Read10X(data.dir = "./data/uninjured/10x/B3")
-pre_regressed_B3 <- CreateSeuratObject(counts = B3.data, min.cells = 10, min.features = 100, project = "10X_uninjured_B3")
-mito.features <- grep(pattern = "^MT-", x = rownames(x = pre_regressed_B3), value = TRUE)
-percent.mito <- Matrix::colSums(x = GetAssayData(object = pre_regressed_B3, slot = 'counts')[mito.features, ]) / Matrix::colSums(x = GetAssayData(object = pre_regressed_B3, slot = 'counts'))
-total_reads <- Matrix::colSums(GetAssayData(pre_regressed_B3, slot = "counts"))
-pre_regressed_B3[['percent.mito']] <- percent.mito
-pre_regressed_B3[['total_reads']] <- total_reads
-pre_regressed_B3$tech <- "10x"
+B3_selected_cells <- metadata_uninjured %>% dplyr::filter(sample == "10X_B3")%>% 
+    dplyr::filter(barcode %in% colnames(B3.data))
 
+B3_selected_cells$barcode <- as.character(B3_selected_cells$barcode)
+selected_data <- B3.data[,B3_selected_cells$barcode]
+
+pre_regressed_B3 <- CreateSeuratObject(counts = selected_data, min.cells = 10, min.features = 100, project = "10X_uninjured_B3")
+pre_regressed_B3$tech <- "10x"
 pre_regressed_B3$injured_st <- "uninjured"
 pre_regressed_B3$sample <- "B3"
 
+
 ## Indrop samples
-Indrop.data_uninj <- read.delim("./data/uninjured/indrop/indrop_p2.txt",header = T,row.names = 1)
-pre_regressed_Indrop_uninj <- CreateSeuratObject(counts = Indrop.data_uninj, min.cells = 10, min.features = 100, project = "Indrop_uninjured")
-Indrop.data_uninj_PC2
+Indrop.data_uninj <- read.delim("./data/uninjured/indrop/indrop_p2.txt",header = T,row.names = 1) %>% as.matrix()
+
+
+Indrop_blood2_uninj_selected_cells <- metadata_uninjured %>% dplyr::filter(sample == "blood2_TAAGGCTC") %>%
+    dplyr::filter(barcode %in% colnames(Indrop.data_uninj))
+
+Indrop_blood2_uninj_selected_cells$barcode <- as.character(Indrop_blood2_uninj_selected_cells$barcode)
+selected_data <- Indrop.data_uninj[,Indrop_blood2_uninj_selected_cells$barcode]
+
+
+pre_regressed_Indrop_blood2_uninj <- CreateSeuratObject(counts = selected_data, min.cells = 10, min.features = 100, project = "Indrop_blood2_uninj")
+
+pre_regressed_Indrop_blood2_uninj$tech <- "Indrop"
+pre_regressed_Indrop_blood2_uninj$injured_st <- "uninjured"
+pre_regressed_Indrop_blood2_uninj$sample <- "Indrop_blood2_uninj"
 
 
 
-#pre_regressed_Indrop_uninj$orig.ident <- "Indrop_uninjured"
-# We use the same genes that the ones used in the 10x set
-mito_genes <- gsub("MT-","",mito.features)[gsub("MT-","",mito.features) %in% rownames(pre_regressed_Indrop_uninj)] 
-percent.mito <- Matrix::colSums(x = GetAssayData(object = pre_regressed_Indrop_uninj, slot = 'counts')[mito_genes, ]) / Matrix::colSums(x = GetAssayData(object = pre_regressed_Indrop_uninj, slot = 'counts'))
-total_reads <- Matrix::colSums(GetAssayData(pre_regressed_Indrop_uninj, slot = "counts"))
-pre_regressed_Indrop_uninj[['percent.mito']] <- percent.mito
-pre_regressed_Indrop_uninj[['total_reads']] <- total_reads
-pre_regressed_Indrop_uninj$tech <- "Indrop"
-pre_regressed_Indrop_uninj$injured_st <- "uninjured"
-pre_regressed_Indrop_uninj$sample <- "Indrop_uninj"
+Indrop_blood3_uninj_selected_cells <- metadata_uninjured %>% dplyr::filter(sample == "blood3_TAAGGCTC") %>%
+    dplyr::filter(barcode %in% colnames(Indrop.data_uninj))
 
-## Metadata
-metadata_uninjured <- read.csv("./metadata/uninjured/metadata.csv",header = T)
-metadata_uninjured$injured_st <- "uninjured"
+Indrop_blood3_uninj_selected_cells$barcode <- as.character(Indrop_blood3_uninj_selected_cells$barcode)
+selected_data <- Indrop.data_uninj[,Indrop_blood3_uninj_selected_cells$barcode]
+
+pre_regressed_Indrop_blood3_uninj <- CreateSeuratObject(counts = selected_data, min.cells = 10, min.features = 100, project = "Indrop_blood3_uninj")
+
+pre_regressed_Indrop_blood3_uninj$tech <- "Indrop"
+pre_regressed_Indrop_blood3_uninj$injured_st <- "uninjured"
+pre_regressed_Indrop_blood3_uninj$sample <- "Indrop_blood3_uninj"
 ```
 
 
 
 ```{r}
 # merge samples
-pre_regress_all_data <- merge(x = pre_regressed_B2 ,y = c(pre_regressed_B4, pre_regressed_Indrop_inj, pre_regressed_B1, pre_regressed_B3, pre_regressed_Indrop_uninj), 
-                              add.cell.id = c("B2","B4","Ind_inj","B1","B3","Ind_uninj"))
+pre_regress_all_data <- merge(x = pre_regressed_B2 ,y = c(pre_regressed_B4, pre_regressed_Indrop_PC1, 
+                                                          pre_regressed_Indrop_PC2_1, pre_regressed_B1, pre_regressed_B3, pre_regressed_Indrop_blood2_uninj, pre_regressed_Indrop_blood3_uninj), 
+                              add.cell.id = c("B2","B4","Ind_PC1","Ind_PC2_1","B1","B3","Ind_blood2","Ind_blood3"))
 # Integration
 pre_regress_all_data_list <- SplitObject(object = pre_regress_all_data, split.by = "sample")
 ```
@@ -192,13 +230,8 @@ pre_regress_all_data_list <- SplitObject(object = pre_regress_all_data, split.by
 for (i in 1:length(x = pre_regress_all_data_list)) {
     cat("\n")
     cat("##",names(pre_regress_all_data_list)[i], "{.tabset} \n")
-    cat("###  Number of genes - Number of UMIs and mitocondrial percentage \n")
-        p <- VlnPlot(object = pre_regress_all_data_list[[i]], features = c("nFeature_RNA", "nCount_RNA", "percent.mito"), ncol = 3)
-        print(p)
-    cat("\n")
-    cat("\n###  nUmi-mito. perc\n")
-        par(mfrow = c(1, 1))
-        p <- FeatureScatter(object = pre_regress_all_data_list[[i]], feature1 = "nCount_RNA", feature2 = "percent.mito")
+    cat("###  Number of genes - Number of UMIs\n")
+        p <- VlnPlot(object = pre_regress_all_data_list[[i]], features = c("nFeature_RNA", "nCount_RNA"), ncol = 2)
         print(p)
     cat("\n")
     cat("\n### Genes detected per cell \n")
@@ -208,16 +241,9 @@ for (i in 1:length(x = pre_regress_all_data_list)) {
         ggtitle("nFeature_RNA")
         print(p)
     cat("\n")
-    cat("\n### nGenes vs total reads\n")
-        p <- pre_regress_all_data_list[[i]]@meta.data %>% 
-        ggplot(aes(x=log10(nFeature_RNA), y=log10(total_reads), fill=orig.ident)) + 
-        geom_point() + 
-        ggtitle("nFeature_RNA vs total reads")
-        print(p)
-    cat("\n")
     cat("\n### nUMI vs nGenes\n")
         p <- pre_regress_all_data_list[[i]]@meta.data %>% 
-        ggplot(aes(x=nCount_RNA, y=nFeature_RNA, color=percent.mito)) + 
+        ggplot(aes(x=nCount_RNA, y=nFeature_RNA)) + 
         geom_point() + 
         stat_smooth(method=lm) +
         scale_x_log10() + 
@@ -241,57 +267,12 @@ pre_regress_all_data_list$B3 <- subset(x = pre_regress_all_data_list$B3, subset 
 pre_regress_all_data_list$Indrop_uninj <- subset(x = pre_regress_all_data_list$Indrop_uninj, subset = (nFeature_RNA >  500 & nFeature_RNA < 1500) & (percent.mito < 0.15) & (nCount_RNA > 2000 & nCount_RNA < 4000))
 ```
 
-# Post Filter QC {.tabset}
-
-```{r, results = "asis"}
-for (i in 1:length(x = pre_regress_all_data_list)) {
-    cat("\n")
-    cat("##",names(pre_regress_all_data_list)[i], "{.tabset} \n")
-    cat("###  Number of genes - Number of UMIs and mitocondrial percentage \n")
-        p <- VlnPlot(object = pre_regress_all_data_list[[i]], features = c("nFeature_RNA", "nCount_RNA", "percent.mito"), ncol = 3)
-        print(p)
-    cat("\n")
-    cat("\n###  nUmi-mito. perc\n")
-        par(mfrow = c(1, 1))
-        p <- FeatureScatter(object = pre_regress_all_data_list[[i]], feature1 = "nCount_RNA", feature2 = "percent.mito")
-        print(p)
-    cat("\n")
-    cat("\n### Genes detected per cell \n")
-        p <- pre_regress_all_data_list[[i]]@meta.data %>% 
-        ggplot(aes(x=orig.ident, y=log10(nFeature_RNA), fill=orig.ident)) + 
-        geom_boxplot() + 
-        ggtitle("nFeature_RNA")
-        print(p)
-    cat("\n")
-    cat("\n### nGenes vs total reads\n")
-        p <- pre_regress_all_data_list[[i]]@meta.data %>% 
-        ggplot(aes(x=log10(nFeature_RNA), y=log10(total_reads), fill=orig.ident)) + 
-        geom_point() + 
-        ggtitle("nFeature_RNA vs total reads")
-        print(p)
-    cat("\n")
-    cat("\n### nUMI vs nGenes\n")
-        p <- pre_regress_all_data_list[[i]]@meta.data %>% 
-        ggplot(aes(x=nCount_RNA, y=nFeature_RNA, color=percent.mito)) + 
-        geom_point() + 
-        stat_smooth(method=lm) +
-        scale_x_log10() + 
-        scale_y_log10() + 
-        geom_vline(xintercept = 800) +
-        facet_wrap(~orig.ident)
-        print(p)
-    cat("\n")
-}
-```
 
 
 # Structure {.tabset}
 
 ```{r}
-all_data.pre_integrated <- merge(x = pre_regress_all_data_list$B2 ,y = c(pre_regress_all_data_list$B4, pre_regress_all_data_list$Indrop_inj, pre_regress_all_data_list$B1, 
-                                                                         pre_regress_all_data_list$B3, pre_regress_all_data_list$Indrop_uninj), 
-                              add.cell.id = c("B2","B4","Ind_inj","B1","B3","Ind_uninj"))
-
+all_data.pre_integrated <-  pre_regress_all_data
 
 all_data.pre_integrated<- NormalizeData(object = all_data.pre_integrated, verbose = FALSE)
 all_data.pre_integrated <- FindVariableFeatures(object = all_data.pre_integrated, 
@@ -364,13 +345,15 @@ for (i in 1:length(x = pre_regress_all_data_list)) {
                                              selection.method = "vst", nfeatures = 2000, verbose = FALSE)
 }
 # finding anchors
-reference.list <- pre_regress_all_data_list[c("B2","B4","Indrop_inj","B1","B3","Indrop_uninj")]
+
+reference.list <- pre_regress_all_data_list[c("B2","B4","Indrop_PC1","Indrop_PC2_1","B1","B3","Indrop_blood2_uninj","Indrop_blood3_uninj")
+]
 pre_regress_all_data.anchors <- FindIntegrationAnchors(object.list = reference.list, dims = 1:30)
 pre_regress_all_data.integrated <- IntegrateData(anchorset = pre_regress_all_data.anchors, dims = 1:30)
 DefaultAssay(object = pre_regress_all_data.integrated) <- "integrated"
 all_data.integrated <- ScaleData(object = pre_regress_all_data.integrated,vars.to.regress = params$vars_to_regress,verbose = FALSE)
 DefaultAssay(object = all_data.integrated) <- "integrated"
-all_data.integrated <- RunPCA(object = all_data.integrated, npcs = 30, verbose = FALSE)
+all_data.integrated <- RunPCA(object = all_data.integrated, npcs = 3, verbose = FALSE)
 all_data.integrated <- RunUMAP(object = all_data.integrated, reduction = "pca",dims = 1:30)
 all_data.integrated <- RunTSNE(object = all_data.integrated, reduction = "pca",dims = 1:30)
 ```
@@ -431,20 +414,30 @@ show(p6)
 ```{r}
 # clustering, finding maker genes
 all_data.integrated <- FindNeighbors(object = all_data.integrated, dims = 1:30)
-all_data.integrated <- FindClusters(object = all_data.integrated, resolution = 0.6)
 ```
 
-## UMAP
 
-```{r}
-DimPlot(object = all_data.integrated, reduction = 'umap')
+# Clusters {.tabset}
+
+We explore different levels of resolution.
+
+```{r cluster_plots_diff_resolutions, results= "asis"}
+for (res in seq(0.1,2,0.1)){
+  cat("\n")
+  cat("\n##","Cluster resolution: ",res,"{.tabset}\n")
+      all_data.integrated <- FindClusters(all_data.integrated, resolution = res,  verbose = FALSE)
+      cat("\n### UMAP\n")
+        p1 <- DimPlot(object = all_data.integrated, reduction = 'umap', split.by = "injured_st",  label = TRUE)
+        print(p1)
+        cat("\n")
+      cat("\n### TSNE\n")
+        p2 <- DimPlot(object = all_data.integrated, reduction = 'tsne', split.by = "injured_st", label = TRUE)
+        print(p2)
+        cat("\n")
+  cat("\n")
+}
 ```
 
-## TSNE
-
-```{r}
-DimPlot(object = all_data.integrated, reduction = 'tsne')
-```
 
 # Plot genes UMAP {.tabset}
 
