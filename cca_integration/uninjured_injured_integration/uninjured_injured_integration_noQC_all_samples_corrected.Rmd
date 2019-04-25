@@ -353,7 +353,7 @@ pre_regress_all_data.integrated <- IntegrateData(anchorset = pre_regress_all_dat
 DefaultAssay(object = pre_regress_all_data.integrated) <- "integrated"
 all_data.integrated <- ScaleData(object = pre_regress_all_data.integrated,vars.to.regress = params$vars_to_regress,verbose = FALSE)
 DefaultAssay(object = all_data.integrated) <- "integrated"
-all_data.integrated <- RunPCA(object = all_data.integrated, npcs = 3, verbose = FALSE)
+all_data.integrated <- RunPCA(object = all_data.integrated, npcs = 30, verbose = FALSE)
 all_data.integrated <- RunUMAP(object = all_data.integrated, reduction = "pca",dims = 1:30)
 all_data.integrated <- RunTSNE(object = all_data.integrated, reduction = "pca",dims = 1:30)
 ```
