@@ -1,5 +1,5 @@
 ---
-title: "uninjured_injured_integration"
+title: "uninjured_injured_integration - Separated samples"
 author: "Victor Barrera"
 date: ""
 output: html_document
@@ -37,6 +37,9 @@ set.seed(1234567890)
 ```
 
 ```{r check-library-functions, echo=FALSE, message=FALSE}
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+
 # function to check installed libraries
 check_install = function(packages) {
     not_installed = setdiff(packages, rownames(installed.packages()))
@@ -258,6 +261,15 @@ for (i in 1:length(x = pre_regress_all_data_list)) {
 
 # Filter
 ```{r filtering, eval = FALSE}
+
+for (i in 1:length(x = pre_regress_all_data_list)) {
+  pre_regress_all_data_list[[i]] <-subset(x = pre_regress_all_data_list[[i]], subset = (nFeature_RNA > 500))
+
+}
+
+```
+
+```{r, eval = FALSE}
 # We filter using threshold values based on the previous QC
 pre_regress_all_data_list$B2 <- subset(x = pre_regress_all_data_list$B2, subset = (nFeature_RNA > 250 & nFeature_RNA < 2000) & (percent.mito < 0.2) & (nCount_RNA > 250 & nCount_RNA < 5000))
 pre_regress_all_data_list$B4<- subset(x = pre_regress_all_data_list$B4, subset = (nFeature_RNA > 250  & nFeature_RNA < 2000) & (percent.mito < 0.2) & (nCount_RNA > 250 & nCount_RNA < 5000))
@@ -266,7 +278,6 @@ pre_regress_all_data_list$B1 <- subset(x = pre_regress_all_data_list$B1, subset 
 pre_regress_all_data_list$B3 <- subset(x = pre_regress_all_data_list$B3, subset = (nFeature_RNA > 250 & nFeature_RNA < 2000) & (percent.mito < 0.2) & (nCount_RNA > 250 & nCount_RNA < 5000))
 pre_regress_all_data_list$Indrop_uninj <- subset(x = pre_regress_all_data_list$Indrop_uninj, subset = (nFeature_RNA >  500 & nFeature_RNA < 1500) & (percent.mito < 0.15) & (nCount_RNA > 2000 & nCount_RNA < 4000))
 ```
-
 
 
 # Structure {.tabset}
@@ -423,6 +434,129 @@ show(p6)
 
 
 
+### Clusters {.tabset}
+
+```{r}
+# clustering, finding maker genes
+all_data.integrated_inj <- FindNeighbors(object = all_data.integrated_inj, dims = 1:30)
+```
+
+
+We explore different levels of resolution.
+
+```{r cluster_plots_diff_resolutions_inj, results= "asis"}
+for (res in seq(0.1,2,0.1)){
+  cat("\n")
+  cat("\n####","Cluster resolution: ",res,"{.tabset}\n")
+      all_data.integrated_inj <- FindClusters(all_data.integrated_inj, resolution = res,  verbose = FALSE)
+      cat("\n##### UMAP\n")
+        p1 <- DimPlot(object = all_data.integrated_inj, reduction = 'umap',  label = TRUE)
+        print(p1)
+        cat("\n")
+      cat("\n##### TSNE\n")
+        p2 <- DimPlot(object = all_data.integrated_inj, reduction = 'tsne', label = TRUE)
+        print(p2)
+        cat("\n")
+  cat("\n")
+}
+```
+
+
+
+### Markers 
+
+```{r}
+selected_genes <- rio::import("./markers.csv")
+```
+
+Genes:
+
+```{r}
+DT::datatable(selected_genes)
+```
+
+
+#### UMAP{.tabset}
+
+```{r, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneID %in% rownames(all_data.integrated_inj))
+
+
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(all_data.integrated_inj)[selected_genes$geneID,]))>0,]
+
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "umap",min.cutoff = 1)
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
+    return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+    cat("\n")
+    cat("#####",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/6))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("######",paste(cell_t,i,sep="-"),"\n")
+        
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data.integrated_inj,x)})
+        
+        
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+
+```
+
+
+#### TSNE{.tabset}
+
+
+```{r, results = "asis"}
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "tsne",min.cutoff = 1)
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
+    return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+    cat("\n")
+    cat("#####",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/6))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("######",paste(cell_t,i,sep="-"),"\n")
+        
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data.integrated_inj,x)})
+        
+        
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+
+```
+
+
+
+
+
 ## UnInjured
 
 ```{r}
@@ -506,20 +640,142 @@ show(p5)
 show(p6)
 ```
 
+### Clusters {.tabset}
 
-######
+```{r}
+# clustering, finding maker genes
+all_data.integrated_uninj <- FindNeighbors(object = all_data.integrated_uninj, dims = 1:30)
+```
+
+
+We explore different levels of resolution.
+
+```{r cluster_plots_diff_resolutions_ununij, results= "asis"}
+for (res in seq(0.1,2,0.1)){
+  cat("\n")
+  cat("\n####","Cluster resolution: ",res,"{.tabset}\n")
+      all_data.integrated_uninj <- FindClusters(all_data.integrated_uninj, resolution = res,  verbose = FALSE)
+      cat("\n##### UMAP\n")
+        p1 <- DimPlot(object = all_data.integrated_uninj, reduction = 'umap',  label = TRUE)
+        print(p1)
+        cat("\n")
+      cat("\n##### TSNE\n")
+        p2 <- DimPlot(object = all_data.integrated_uninj, reduction = 'tsne', label = TRUE)
+        print(p2)
+        cat("\n")
+  cat("\n")
+}
+```
+
+
+### Markers 
+
+```{r}
+selected_genes <- rio::import("./markers.csv")
+```
+
+Genes:
+
+```{r}
+DT::datatable(selected_genes)
+```
+
+
+#### UMAP{.tabset}
+
+```{r, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneID %in% rownames(all_data.integrated_uninj))
+
+
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(all_data.integrated_uninj)[selected_genes$geneID,]))>0,]
+
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "umap",min.cutoff = 1)
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
+    return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+    cat("\n")
+    cat("#####",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/6))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("######",paste(cell_t,i,sep="-"),"\n")
+        
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data.integrated_uninj,x)})
+        
+        
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+
+```
+
+
+#### TSNE{.tabset}
+
+
+```{r, results = "asis"}
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "tsne",min.cutoff = 1)
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
+    return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+    cat("\n")
+    cat("#####",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/6))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("######",paste(cell_t,i,sep="-"),"\n")
+        
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data.integrated_uninj,x)})
+        
+        
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+
+```
+
+
+## All
 
 ```{r}
 all_data_full_list <- list(all_data.integrated_inj = all_data.integrated_inj,all_data.integrated_uninj = all_data.integrated_uninj)
 ```
 
 
-```{r}
+```{r, eval = FALSE}
 for (i in 1:length(x = all_data_full_list)) {
   all_data_full_list[[i]] <- NormalizeData(object = all_data_full_list[[i]], verbose = FALSE)
   all_data_full_list[[i]] <- FindVariableFeatures(object = all_data_full_list[[i]], 
                                              selection.method = "vst", nfeatures = 2000, verbose = FALSE)
 }
+
+```
+
+```{r}
 # finding anchors
 
 reference.list_all <- all_data_full_list[c("all_data.integrated_inj","all_data.integrated_uninj")
@@ -534,32 +790,32 @@ all_data_full_.integrated <- RunUMAP(object = all_data_full_.integrated, reducti
 all_data_full_.integrated <- RunTSNE(object = all_data_full_.integrated, reduction = "pca",dims = 1:30)
 ```
 
-## UMAP {.tabset}
+### UMAP {.tabset}
 ```{r}
 p1 <- DimPlot(object = all_data_full_.integrated, reduction = "umap", group.by = "sample")
 p2 <- DimPlot(object = all_data_full_.integrated, reduction = "umap", group.by = "tech")
 p3 <- DimPlot(object = all_data_full_.integrated, reduction = "umap", group.by = "injured_st")
 ```
 
-### By sample
+#### By sample
 
 ```{r}
 show(p1)
 ```
 
-### By tech
+#### By tech
 
 ```{r}
 show(p2)
 ```
 
-### By injured status
+#### By injured status
 
 ```{r}
 show(p3)
 ```
 
-## TSNE {.tabset}
+### TSNE {.tabset}
 
 ```{r}
 p4 <- DimPlot(object = all_data_full_.integrated, reduction = "tsne", group.by = "sample")
@@ -567,19 +823,19 @@ p5 <- DimPlot(object = all_data_full_.integrated, reduction = "tsne", group.by =
 p6 <- DimPlot(object = all_data_full_.integrated, reduction = "tsne", group.by = "injured_st")
 ```
 
-### By sample
+#### By sample
 
 ```{r}
 show(p4)
 ```
 
-### By tech
+#### By tech
 
 ```{r}
 show(p5)
 ```
 
-### By injured status
+#### By injured status
 
 ```{r}
 show(p6)
@@ -589,11 +845,9 @@ show(p6)
 
 ```{r}
 # clustering, finding maker genes
-all_data.integrated <- FindNeighbors(object = all_data.integrated, dims = 1:30)
+all_data_full_.integrated <- FindNeighbors(object = all_data_full_.integrated, dims = 1:30)
 ```
 
-
-# Clusters {.tabset}
 
 We explore different levels of resolution.
 
@@ -601,16 +855,107 @@ We explore different levels of resolution.
 for (res in seq(0.1,2,0.1)){
   cat("\n")
   cat("\n##","Cluster resolution: ",res,"{.tabset}\n")
-      all_data.integrated <- FindClusters(all_data.integrated, resolution = res,  verbose = FALSE)
+      all_data_full_.integrated <- FindClusters(all_data_full_.integrated, resolution = res,  verbose = FALSE)
       cat("\n### UMAP\n")
-        p1 <- DimPlot(object = all_data.integrated, reduction = 'umap', split.by = "injured_st",  label = TRUE)
+        p1 <- DimPlot(object = all_data_full_.integrated, reduction = 'umap', split.by = "injured_st",  label = TRUE)
         print(p1)
         cat("\n")
       cat("\n### TSNE\n")
-        p2 <- DimPlot(object = all_data.integrated, reduction = 'tsne', split.by = "injured_st", label = TRUE)
+        p2 <- DimPlot(object = all_data_full_.integrated, reduction = 'tsne', split.by = "injured_st", label = TRUE)
         print(p2)
         cat("\n")
   cat("\n")
 }
+```
+
+
+# Markers 
+
+```{r}
+selected_genes <- rio::import("./markers.csv")
+```
+
+Genes:
+
+```{r}
+DT::datatable(selected_genes)
+```
+
+
+## UMAP{.tabset}
+
+```{r, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneID %in% rownames(all_data_full_.integrated))
+
+
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(all_data_full_.integrated)[selected_genes$geneID,]))>0,]
+
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "umap",min.cutoff = 1,  split.by = "injured_st")
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
+    return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+    cat("\n")
+    cat("###",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/4))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####",paste(cell_t,i,sep="-"),"\n")
+        
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data_full_.integrated,x)})
+        
+        
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+
+```
+
+
+## TSNE{.tabset}
+
+
+```{r, results = "asis"}
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "tsne",min.cutoff = 1,  split.by = "injured_st")
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
+    return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+    cat("\n")
+    cat("###",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/4))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####",paste(cell_t,i,sep="-"),"\n")
+        
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data_full_.integrated,x)})
+        
+        
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+
 ```
 

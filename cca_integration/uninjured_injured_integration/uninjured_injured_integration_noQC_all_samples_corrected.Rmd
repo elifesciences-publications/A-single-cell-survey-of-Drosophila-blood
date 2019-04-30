@@ -417,8 +417,6 @@ all_data.integrated <- FindNeighbors(object = all_data.integrated, dims = 1:30)
 ```
 
 
-# Clusters {.tabset}
-
 We explore different levels of resolution.
 
 ```{r cluster_plots_diff_resolutions, results= "asis"}
@@ -439,37 +437,7 @@ for (res in seq(0.1,2,0.1)){
 ```
 
 
-# Plot genes UMAP {.tabset}
 
-```{r, results = 'asis'}
-
-for (gene in c("FBgn0000299","FBgn0030362","FBgn0003124","FBgn0261385","FBgn0042106","FBgn0039759","FBgn0034010","FBgn0028517",
-              "FBgn0033367","FBgn0035189","FBgn0001223","FBgn0013275","FBgn0267521","FBgn0267498","FBgn0029766","FBgn0032136",
-              "FBgn0283461","FBgn0038530","FBgn0262952","FBgn0013676", "FBgn0033520","FBgn0033518","FBgn0040609","FBgn0001258",
-              "FBgn0030073","FBgn0029002","FBgn0003888","FBgn0263080")){
-    cat("\n")
-    cat("##",gene,"\n")
-    p <-  FeaturePlot(object = all_data.integrated, reduction = 'umap', features = c(gene), min.cutoff = 1)
-    print(p)
-    cat("\n")
-}
-```
-
-# Plot genes t-SNE {.tabset}
-
-```{r, results = 'asis'}
-
-for (gene in c("FBgn0000299","FBgn0030362","FBgn0003124","FBgn0261385","FBgn0042106","FBgn0039759","FBgn0034010","FBgn0028517",
-              "FBgn0033367","FBgn0035189","FBgn0001223","FBgn0013275","FBgn0267521","FBgn0267498","FBgn0029766","FBgn0032136",
-              "FBgn0283461","FBgn0038530","FBgn0262952","FBgn0013676", "FBgn0033520","FBgn0033518","FBgn0040609","FBgn0001258",
-              "FBgn0030073","FBgn0029002","FBgn0003888","FBgn0263080")){
-    cat("\n")
-    cat("##",gene,"\n")
-    p <-  FeaturePlot(object = all_data.integrated, reduction = 'tsne', features = c(gene), min.cutoff = 1)
-    print(p)
-    cat("\n")
-}
-```
 
 
 # Markers 
@@ -485,7 +453,7 @@ DT::datatable(selected_genes)
 ```
 
 
-# Plots-UMAP{.tabset}
+## UMAP{.tabset}
 
 ```{r, results = "asis"}
 selected_genes <- selected_genes %>% dplyr::filter(geneID %in% rownames(all_data.integrated))
@@ -495,19 +463,23 @@ selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(all_data.integra
 
 plot_feature_plot_wrapper <- function(obj,sub_df){
     p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
-reduction = "umap",min.cutoff = 1) + 
-        ggtitle(sub_df[2]) %>% invisible()
+reduction = "umap",min.cutoff = 1)
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
     return(p)
 }
 
 for(cell_t in unique(selected_genes$cellType)){
     cat("\n")
-    cat("##",cell_t," {.tabset} \n")
+    cat("###",cell_t," {.tabset} \n")
     df <- selected_genes %>% dplyr::filter(cellType == cell_t)
     df_split <- split(df, ceiling(seq_along(df$geneID)/6))
     for(i in names(df_split)){
         cat("\n")
-        cat("###",paste(cell_t,i,sep="-"),"\n")
+        cat("####",paste(cell_t,i,sep="-"),"\n")
         
         plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data.integrated,x)})
         
@@ -522,25 +494,29 @@ for(cell_t in unique(selected_genes$cellType)){
 ```
 
 
-# Plots-TSNE{.tabset}
+## TSNE{.tabset}
 
 
 ```{r, results = "asis"}
 plot_feature_plot_wrapper <- function(obj,sub_df){
     p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
-reduction = "tsne",min.cutoff = 1) + 
-        ggtitle(sub_df[2]) %>% invisible()
+reduction = "tsne",min.cutoff = 1)
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
     return(p)
 }
 
 for(cell_t in unique(selected_genes$cellType)){
     cat("\n")
-    cat("##",cell_t," {.tabset} \n")
+    cat("###",cell_t," {.tabset} \n")
     df <- selected_genes %>% dplyr::filter(cellType == cell_t)
     df_split <- split(df, ceiling(seq_along(df$geneID)/6))
     for(i in names(df_split)){
         cat("\n")
-        cat("###",paste(cell_t,i,sep="-"),"\n")
+        cat("####",paste(cell_t,i,sep="-"),"\n")
         
         plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data.integrated,x)})
         
@@ -553,3 +529,4 @@ for(cell_t in unique(selected_genes$cellType)){
 }
 
 ```
+
