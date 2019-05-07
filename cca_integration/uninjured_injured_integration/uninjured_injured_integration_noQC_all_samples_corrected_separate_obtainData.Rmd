@@ -433,7 +433,7 @@ all_data_full_.integrated <- FindNeighbors(object = all_data_full_.integrated, d
 ```{r cluster_plots_diff_resolutions_all}
 for (res in seq(0.1,2,0.1)){
       all_data_full_.integrated <- FindClusters(all_data_full_.integrated, resolution = res,  verbose = FALSE)
-      cluster_id <- FetchData(all_data_full_.integrated, vars = c("ident")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell") %>% 
+      cluster_id <- FetchData(all_data_full_.integrated, vars = c("ident","injured_st")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell") %>% 
       dplyr::rename(cluster = ident)
       rio::export(cluster_id, file = file.path(resultsDir_all,paste0("all_res_",res, "_cluster_id.tsv.gz")))
 }
@@ -453,3 +453,7 @@ expression_cells_geneName <- rows %>% dplyr::inner_join(expression_cells_geneNam
 rio::export(expression_cells, file = file.path(resultsDir_all,"all_expression_cells.tsv.gz"))
 rio::export(expression_cells_geneName, file = file.path(resultsDir_all,"all_expression_cells_geneName.tsv.gz"))
 ```
+```{r}
+save(all_data.integrated_inj,all_data.integrated_uninj,all_data_full_.integrated, file = file.path(resultsDir,"all_integrated_objects.Rda"))
+```
+
