@@ -1,0 +1,150 @@
+---
+title: "uninjured_injured_integration - Separated samples"
+author: "Victor Barrera"
+date: ""
+output: html_document
+params:
+    vars_to_regress: !r c("nFeature_RNA","percent.mito")
+    outputDir: "."
+    objectFile: "./uninjured_injured_integration/results/2019-05-13/all_integrated_objects.Rda"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE ,warning = FALSE}
+# Shared R Markdown settings
+if (file.exists("_setup.R")) {
+    source("_setup.R")
+}
+```
+
+```{r}
+# Create folders
+resultsDir <- file.path(params$outputDir, "results",Sys.Date())
+invisible(mapply(
+    FUN = dir.create,
+    list(resultsDir),
+    MoreArgs = list(recursive = TRUE, showWarnings = FALSE)
+))
+
+
+```
+
+```{r}
+# Specify seed for reproducibility
+set.seed(1234567890)
+```
+
+```{r check-library-functions, echo=FALSE, message=FALSE}
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+
+# function to check installed libraries
+check_install = function(packages) {
+    not_installed = setdiff(packages, rownames(installed.packages()))
+    if (length(not_installed) > 0) {
+        write(paste("The libraries", not_installed, "are not installed, aborting.",
+                    sep = " "), stderr())
+        stop()
+    }
+}
+```
+
+```{r load-libraries, echo=FALSE, message=FALSE, warning=FALSE}
+# load requiered library after checking if installed
+packages = c("Seurat", "reticulate","AnnotationHub","ggplot2","cowplot", "dplyr")
+check_install(packages)
+installed = lapply(packages, library, character.only = TRUE)
+```
+
+```{r}
+# load conda environment that contains umap-learning for umap plots
+use_condaenv("bioPython", conda = "/Users/victorbarrera/software/miniconda2/bin/conda", required = TRUE)
+```
+
+
+```{r}
+load(params$objectFile)
+```
+
+```{r}
+Idents(object = all_data_full_.integrated) <- 'integrated_snn_res.0.6'
+```
+
+```{r}
+DimPlot(all_data_full_.integrated, reduction = 'umap', label = TRUE, split.by = "injured_st")
+```
+
+```{r}
+DefaultAssay(all_data_full_.integrated) <- "RNA"
+FindMarkers(all_data_full_.integrated, ident.1 = "1")
+```
+
+
+```{r}
+cluster_1 <- subset(all_data_full_.integrated, idents = "1")
+Idents(cluster_1) <- "injured_st"
+
+DefaultAssay(cluster_1) <- "RNA"
+
+FindMarkers(cluster_1, ident.1 = "injured", ident.2 = "uninjured")
+```
+
+```{r}
+all_data_full_.integrated$cluster.inj_st <- paste(Idents(all_data_full_.integrated), all_data_full_.integrated$injured_st, sep = "_")
+all_data_full_.integrated$cluster <- Idents(all_data_full_.integrated)
+Idents(all_data_full_.integrated) <- "cluster.inj_st"
+```
+
+```{r}
+FindMarkers(all_data_full_.integrated, ident.1 = "11_injured", ident.2 = "11_uninjured", verbose = FALSE)
+```
+
+
+```{r}
+FeaturePlot(all_data_full_.integrated, features = c("FBto0000027","Ald","FBgn0286784"), split.by = "injured_st", cols = c("grey","red"))
+```
+
+```{r}
+FeaturePlot(all_data_full_.integrated, features = c("FBgn0027579","FBgn0039712","FBgn0034879"), split.by = "injured_st", cols = c("grey","red"))
+```
+
+```{r}
+FeaturePlot(all_data_full_.integrated, features = c("FBgn0068160","l(1)G0255","FBgn0028434"), split.by = "injured_st", cols = c("grey","red"))
+
+```
+```{r}
+FeaturePlot(all_data_full_.integrated, features = c("FBgn0068160","l(1)G0255","FBgn0028434"), split.by = "injured_st", cols = c("grey","red"))
+
+```
+
+```{r}
+plots <- VlnPlot(all_data_full_.integrated, features = c("Ald","FBgn0068159","FBto0000027"), split.by = "injured_st", group.by = "cluster", 
+    pt.size = 0, combine = FALSE)
+CombinePlots(plots = plots, ncol = 1)
+```
+
+```{r}
+FeaturePlot(all_data_full_.integrated, features = c("FBgn0003053"), split.by = "injured_st", cols = c("grey","red"))
+```
+
+```{r}
+plots <- VlnPlot(all_data_full_.integrated, features = c("FBgn0003053"), split.by = "injured_st", group.by = "cluster", 
+    pt.size = 0, combine = FALSE)
+```
+
+```{r}
+plots <- VlnPlot(all_data_full_.integrated, features =  c("FBgn0027579","FBgn0039712","FBgn0034879"), split.by = "injured_st", group.by = "cluster", 
+    pt.size = 0, combine = FALSE)
+CombinePlots(plots = plots, ncol = 1)
+```
+
+
+```{r}
+markers.to.plot <- c("FBto0000027","Ald","FBgn0286784")
+DotPlot(all_data_full_.integrated, features = rev(markers.to.plot), cols = c("blue", "red"), dot.scale = 8, 
+    split.by = "injured_st") + RotatedAxis()
+```
+
