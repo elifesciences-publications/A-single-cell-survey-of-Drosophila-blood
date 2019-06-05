@@ -1,0 +1,283 @@
+---
+title: "uninjured_injured_integration - Separated samples - Harmony"
+author: "Victor Barrera"
+date: ""
+output: html_document
+params:
+    outputDir: "."
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE ,warning = FALSE}
+# Shared R Markdown settings
+if (file.exists("_setup.R")) {
+    source("_setup.R")
+}
+```
+
+```{r}
+# Create folders
+resultsDir <- file.path(params$outputDir, "results",Sys.Date())
+invisible(mapply(
+    FUN = dir.create,
+    list(resultsDir),
+    MoreArgs = list(recursive = TRUE, showWarnings = FALSE)
+))
+
+
+```
+
+```{r}
+# Specify seed for reproducibility
+set.seed(1234567890)
+```
+
+```{r check-library-functions, echo=FALSE, message=FALSE}
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+
+# function to check installed libraries
+check_install = function(packages) {
+    not_installed = setdiff(packages, rownames(installed.packages()))
+    if (length(not_installed) > 0) {
+        write(paste("The libraries", not_installed, "are not installed, aborting.",
+                    sep = " "), stderr())
+        stop()
+    }
+}
+```
+
+```{r load-libraries, echo=FALSE, message=FALSE, warning=FALSE}
+# load requiered library after checking if installed
+packages = c("Seurat", "reticulate","AnnotationHub","ggplot2","cowplot", "dplyr", "harmony")
+check_install(packages)
+installed = lapply(packages, library, character.only = TRUE)
+```
+
+```{r}
+# load conda environment that contains umap-learning for umap plots
+use_condaenv("bioPython", conda = "/Users/victorbarrera/software/miniconda2/bin/conda", required = TRUE)
+```
+
+```{r}
+ah <- AnnotationHub()
+ahDb <- query(ah, pattern = c("Drosophila Melanogaster","EnsDb") )
+
+id <- ahDb %>% 
+     mcols() %>%  
+        rownames() %>%
+        tail(n = 1)
+
+## Download the appropriate Ensembldb database
+ahEnsdb <- ahDb[[id]]
+
+rows <- genes(ahEnsdb)  %>% 
+    as.data.frame() %>% 
+    dplyr::mutate(gene_name = toupper(gene_name)) %>% 
+    dplyr::select(c(gene_id,gene_name))
+```
+
+```{r, load-data}
+# Injured
+
+## Metadata
+## We use the metadata samples in order to choose the samples to use
+metadata_injured <- read.csv("./metadata/injured/metadata.csv",header = T)
+colnames(metadata_injured) <- gsub("barcodes","barcode",colnames(metadata_injured))
+
+## 10x samples
+B2.data <- Read10X(data.dir = "./data/injured/10x/B2")
+B2_selected_cells <- metadata_injured %>% dplyr::filter(sample == "10X_injured_B2")%>% 
+    dplyr::filter(barcode %in% colnames(B2.data))
+B2_selected_cells$barcode <- as.character(B2_selected_cells$barcode)
+selected_data_B2 <- B2.data[,B2_selected_cells$barcode]
+
+B4.data <- Read10X(data.dir = "./data/injured/10x/B4")
+B4_selected_cells <- metadata_injured %>% dplyr::filter(sample == "10X_injured_B4") %>% 
+    dplyr::filter(barcode %in% colnames(B4.data))
+B4_selected_cells$sample <- droplevels(B4_selected_cells$sample) 
+B4_selected_cells$barcode <- as.character(B4_selected_cells$barcode)
+selected_data_B4 <- B4.data[,B4_selected_cells$barcode]
+
+
+## Indrop samples
+Indrop.data_inj <- read.delim("./data/injured/indrop/counts_project4.txt",header = T,row.names = 1) %>% as.matrix()
+
+
+Indrop_PC1_selected_cells <- metadata_injured %>% dplyr::filter(sample == "Indrop_PC1") %>% 
+    dplyr::filter(barcode %in% colnames(Indrop.data_inj))
+Indrop_PC1_selected_cells$barcode <- as.character(Indrop_PC1_selected_cells$barcode)
+selected_data_PC1 <- Indrop.data_inj[,Indrop_PC1_selected_cells$barcode]
+
+
+Indrop_PC2_1_selected_cells <- metadata_injured %>% dplyr::filter(sample == "Indrop_PC2_1") %>% 
+    dplyr::filter(barcode %in% colnames(Indrop.data_inj))
+
+Indrop_PC2_1_selected_cells$barcode <- as.character(Indrop_PC2_1_selected_cells$barcode)
+selected_data_PC2_1 <- Indrop.data_inj[,Indrop_PC2_1_selected_cells$barcode]
+```
+
+
+```{r}
+# Uninjured
+
+## Metadata
+## We use the metadata samples in order to choose the samples to use
+
+metadata_uninjured <- read.csv("./metadata/uninjured/metadata.csv",header = T)
+colnames(metadata_uninjured) <- gsub("barcodes","barcode",colnames(metadata_uninjured))
+
+## 10x samples
+B1.data <- Read10X(data.dir = "./data/uninjured/10x/B1/")
+B1_selected_cells <- metadata_uninjured %>% dplyr::filter(sample == "10X_B1")%>% 
+    dplyr::filter(barcode %in% colnames(B1.data))
+B1_selected_cells$barcode <- as.character(B1_selected_cells$barcode)
+selected_data_B1 <- B1.data[,B1_selected_cells$barcode]
+
+
+B3.data <- Read10X(data.dir = "./data/uninjured/10x/B3")
+B3_selected_cells <- metadata_uninjured %>% dplyr::filter(sample == "10X_B3")%>% 
+    dplyr::filter(barcode %in% colnames(B3.data))
+
+B3_selected_cells$barcode <- as.character(B3_selected_cells$barcode)
+selected_data_B3 <- B3.data[,B3_selected_cells$barcode]
+
+## Indrop samples
+Indrop.data_uninj <- read.delim("./data/uninjured/indrop/indrop_p2.txt",header = T,row.names = 1) %>% as.matrix()
+
+
+Indrop_blood2_uninj_selected_cells <- metadata_uninjured %>% dplyr::filter(sample == "blood2_TAAGGCTC") %>%
+    dplyr::filter(barcode %in% colnames(Indrop.data_uninj))
+
+Indrop_blood2_uninj_selected_cells$barcode <- as.character(Indrop_blood2_uninj_selected_cells$barcode)
+selected_data_Indrop_blood2_uninj <- Indrop.data_uninj[,Indrop_blood2_uninj_selected_cells$barcode]
+
+
+Indrop_blood3_uninj_selected_cells <- metadata_uninjured %>% dplyr::filter(sample == "blood3_TAAGGCTC") %>%
+    dplyr::filter(barcode %in% colnames(Indrop.data_uninj))
+
+Indrop_blood3_uninj_selected_cells$barcode <- as.character(Indrop_blood3_uninj_selected_cells$barcode)
+selected_data_Indrop_blood3_uninj <- Indrop.data_uninj[,Indrop_blood3_uninj_selected_cells$barcode]
+```
+
+
+
+```{r}
+# Harmony
+
+all_data <- CreateSeuratObject(counts=cbind(selected_data_B2,selected_data_B4, selected_data_B1,selected_data_B3), project = "drosophila", min.cells = 10, min.features = 100) %>%
+    Seurat::NormalizeData(verbose = FALSE) %>%
+    FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
+    ScaleData(verbose = FALSE) %>% 
+    RunPCA(pc.genes = pbmc@var.genes, npcs = 20, verbose = FALSE)
+```
+
+
+```{r}
+
+all_data$injured_st <- c(rep("injured", sum(ncol(selected_data_B2),ncol(selected_data_B4))),rep("uninjured", sum(ncol(selected_data_B1),ncol(selected_data_B3))))
+
+```
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 12)
+p1 <- DimPlot(object = all_data, reduction = "pca", pt.size = .1, group.by = "injured_st", do.return = TRUE)
+p2 <- VlnPlot(object = all_data, features = "PC_1", group.by = "injured_st", do.return = TRUE, pt.size = .1)
+plot_grid(p1,p2)
+```
+
+```{r}
+options(repr.plot.height = 2.5, repr.plot.width = 6)
+all_data <- all_data %>% 
+    RunHarmony("injured_st", plot_convergence = TRUE)
+```
+
+```{r}
+harmony_embeddings <- Embeddings(all_data, 'harmony')
+harmony_embeddings[1:5, 1:5]
+```
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 12)
+p1 <- DimPlot(object = all_data, reduction = "harmony", pt.size = .1, group.by = "injured_st", do.return = TRUE)
+p2 <- VlnPlot(object = all_data, features = "harmony_1", group.by = "injured_st", do.return = TRUE, pt.size = .1)
+plot_grid(p1,p2)
+```
+
+```{r}
+all_data <- all_data %>% 
+    RunUMAP(reduction = "harmony", dims = 1:20) %>% 
+    FindNeighbors(reduction = "harmony", dims = 1:20) %>% 
+    FindClusters(resolution = 0.5) %>% 
+    identity()
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+DimPlot(all_data, reduction = "umap", group.by = "injured_st", pt.size = .1, split.by = 'injured_st')
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 6)
+DimPlot(all_data, reduction = "umap", label = TRUE, pt.size = .1)
+```
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 6)
+DimPlot(all_data, reduction = "umap", pt.size = .1, group.by = "injured_st")
+```
+
+# Markers 
+
+```{r}
+selected_genes <- rio::import("./markers.csv")
+```
+
+Genes:
+
+```{r}
+DT::datatable(selected_genes)
+```
+
+
+## UMAP{.tabset}
+
+```{r, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneID %in% rownames(all_data))
+
+
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(all_data)[selected_genes$geneID,]))>0,]
+
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "umap",min.cutoff = 1,  split.by = "injured_st")
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
+    return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+    cat("\n")
+    cat("###",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/4))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####",paste(cell_t,i,sep="-"),"\n")
+        
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data,x)})
+        
+        
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+
+```
