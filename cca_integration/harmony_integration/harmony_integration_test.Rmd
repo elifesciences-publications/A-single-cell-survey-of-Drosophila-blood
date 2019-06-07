@@ -5,6 +5,7 @@ date: ""
 output: html_document
 params:
     outputDir: "."
+    vars_to_regress: !r c("percent.mito")
     resolution: 0.5
 ---
 
@@ -21,7 +22,7 @@ if (file.exists("_setup.R")) {
 
 ```{r}
 # Create folders
-resultsDir <- file.path(params$outputDir, "results",Sys.Date())
+resultsDir <- file.path(params$outputDir, "results_test",Sys.Date())
 invisible(mapply(
     FUN = dir.create,
     list(resultsDir),
@@ -207,7 +208,9 @@ all_data_matrix[is.na(all_data_matrix)] <- "0"
 ```
 
 ```{r}
-all_data <- CreateSeuratObject(counts=all_data_matrix, project = "drosophila", min.cells = 10, min.features = 100) %>%
+all_data_seurat <- CreateSeuratObject(counts=all_data_matrix, project = "drosophila", min.cells = 10, min.features = 100)
+all_data_seurat[["percent.mt"]] <- PercentageFeatureSet(all_data_seurat, pattern = "^MT-")
+all_data <- all_data_seurat %>% 
     Seurat::NormalizeData(verbose = FALSE) %>%
     FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
     ScaleData(verbose = FALSE) %>% 
