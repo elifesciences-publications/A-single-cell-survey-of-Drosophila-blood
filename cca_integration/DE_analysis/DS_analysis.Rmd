@@ -1,0 +1,252 @@
+---
+title: "DS analysis "
+output: html_document
+params:
+    outputDir: "."
+    resolution: 0.6
+    clusters_file: "../uninjured_injured_integration_harmony/results/2019-06-13/intersect/all_data.Rda"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# data handling
+library(dplyr)
+library(magrittr)
+library(Matrix)
+library(purrr)
+library(reshape2)
+library(S4Vectors)
+library(tibble)
+library(Seurat)
+library(SingleCellExperiment)
+
+# visualzation
+library(ComplexHeatmap)
+library(ggplot2)
+library(pheatmap)
+library(scales)
+```
+
+```{r}
+load(params$clusters_file)
+
+res = params$resolution
+selected_res <- paste0("RNA_snn_res.",res)
+Idents(all_data) <- selected_res
+all_data$cluster <- Idents(all_data)
+#all_data$cluster[all_data$cluster %in% c(1,2,3,4,5)] <- 1
+all_data$cluster <- droplevels(all_data$cluster)
+
+all_data$cluster <- paste0("cluster-",all_data$cluster)
+Idents(all_data) <- "cluster"
+
+
+all_data$sample <- "noSample"
+all_data$sample[grepl("B1",rownames(all_data@meta.data))] <- "B1" 
+all_data$sample[grepl("B2",rownames(all_data@meta.data))] <- "B2" 
+all_data$sample[grepl("B3",rownames(all_data@meta.data))] <- "B3" 
+all_data$sample[grepl("B4",rownames(all_data@meta.data))] <- "B4" 
+all_data$sample[grepl("PC1",rownames(all_data@meta.data))] <- "PC1" 
+all_data$sample[grepl("PC2_1",rownames(all_data@meta.data))] <- "PC2_1" 
+all_data$sample[grepl("blood2_uninj",rownames(all_data@meta.data))] <- "blood2_uninj" 
+all_data$sample[grepl("blood3_uninj",rownames(all_data@meta.data))] <- "blood3_uninj" 
+
+sce <- as.SingleCellExperiment(all_data)
+
+colData(sce) %>% 
+  as.data.frame() %>%
+  dplyr::select(c(sample,injured_st,tech,cluster_id = cluster)) %>% 
+  dplyr::mutate(sample_id = paste(sample,injured_st, sep = "-")) %>% 
+  dplyr::mutate_all(as.factor) %>% 
+  set_rownames(colnames(sce)) %>% 
+  DataFrame -> colData(sce)
+```
+
+```{r}
+nk <- length(kids <- rlang::set_names(levels(sce$cluster_id)))
+ns <- length(sids <- rlang::set_names(levels(sce$sample_id)))
+```
+
+```{r}
+m <- match(sids, sce$sample_id)
+n_cells <- as.numeric(table(sce$sample_id))
+(ei <- data.frame(colData(sce)[m, ], 
+    n_cells, row.names = NULL) %>% 
+    select(-"cluster_id") %>% dplyr::mutate(group = paste(injured_st, tech, sep = "_")))
+```
+
+```{r}
+# remove undetected genes
+sce[rowSums(counts(sce) > 0) > 0, ]
+```
+
+```{r}
+dim(sce)
+```
+
+```{r}
+library(scater)
+
+# calculate quality control (QC) metrics
+sce <- calculateQCMetrics(sce)
+
+# get cells w/ few/many detected genes
+sce$is_outlier <- isOutlier(
+    metric = sce$total_features_by_counts,
+    nmads = 2, type = "both", log = TRUE)
+
+# remove outlier cells
+sce <- sce[, !sce$is_outlier]
+dim(sce)
+```
+
+```{r}
+# remove lowly expressed genes & normalize
+sce <- sce[rowSums(counts(sce) > 1) >= 10, ]
+dim(sce)
+```
+
+```{r}
+sizeFactors(sce) <- librarySizeFactors(sce)
+sce <- normalize(sce)
+assayNames(sce)
+```
+
+
+```{r}
+library(Matrix.utils)
+
+system.time({
+    # aggregate by cluster-sample
+    groups <- colData(sce)[, c("cluster_id", "sample_id")]
+    pb <- aggregate.Matrix(t(counts(sce)), 
+        groupings = groups, fun = "sum") 
+
+      # Not every one of my clusters has 8 samples; create a vector that represents how to split samples
+  splitf <- sapply(stringr::str_split(rownames(pb), "_",  n = 2), `[`, 1)
+    
+    
+    # split by cluster, transform & rename columns
+  pb <- split.data.frame(pb, factor(splitf)) %>% 
+    lapply(function(u) set_colnames(t(u), sapply(stringr::str_split(rownames(u), "_",  n = 2), `[`, 2)))
+})
+```
+```{r}
+# construct SCE of pseudo-bulk counts for only select clusters
+# If you are interested in all clusters AND you have the same samples represented in each cluster you can just use pb
+# (assays = clusters, rows = genes, columns = samples)
+(interestingClusters <- SingleCellExperiment(assays = pb[c("cluster-0", "cluster-1", "cluster-12", "cluster-3", "cluster-6","cluster-7","cluster-8")]))
+```
+
+```{r}
+## MDS plots
+library(edgeR)
+
+# compute MDS coordinates
+mds <- as.list(assays(interestingClusters)) %>% 
+  lapply(as.data.frame.matrix) %>% 
+  bind_cols %>% 
+  DGEList(remove.zeros = TRUE) %>% 
+  calcNormFactors %>% 
+  plotMDS.DGEList(plot = FALSE)
+
+# prep. data.frame for plotting
+new_kids <-  assays(interestingClusters) %>% names()
+gg_df <- data.frame(mds[c("x", "y")],
+                    cluster_id = rep(new_kids, each = ns),
+                    sample_id = rep(sids, length(new_kids)),
+                    group_id = rep(ei$group, length(new_kids)))
+
+# plot MDS
+ggplot(gg_df, aes(x, y, col = cluster_id, shape = group_id)) + 
+  geom_point(size = 3, alpha = 0.8) +
+  labs(x = "MDS dim. 1", y = "MDS dim. 2") + 
+  theme(panel.grid.minor = element_blank()) +
+  coord_fixed() + theme_bw()
+
+
+# Good to use prominent populations for DE/DS (i.e. high cell counts > 30 across all samples)
+options(width = 100)
+#table(sce$ident, sce$orig.ident)
+
+# Testing for DS
+library(limma)
+
+# construct design & contrast matrix
+(design <- model.matrix(~ 0 + ei$tech +  ei$injured_st) %>% 
+    set_rownames(ei$sample) %>% 
+    set_colnames(c("tech10x","techIndrop","injured_st")))
+
+(contrast <- makeContrasts("injured_st", levels = design))
+
+
+# for ea. cluster, run edgeR w/ default parameters
+res <- lapply(new_kids, function(k) {
+  y <- assays(interestingClusters)[[k]]
+  y <- DGEList(y, remove.zeros = TRUE)
+  y <- calcNormFactors(y)
+  y <- estimateDisp(y, design)
+  fit <- glmQLFit(y, design)
+  fit <- glmQLFTest(fit, contrast = contrast)
+  topTags(fit, n = Inf, sort.by = "none")$table %>% 
+    dplyr::mutate(gene = rownames(.), cluster_id = k) %>% 
+    dplyr::rename(p_val = PValue, p_adj = FDR)
+})
+
+names(res) <- new_kids
+# Results filtering & overview
+
+# filter FDR < 0.05, |logFC| > 1 & sort by FDR
+res_fil <- lapply(res, 
+                  function(u)  u %>% 
+                    dplyr::filter(p_adj < 0.05, abs(logFC) > 1) %>% 
+                    dplyr::arrange(p_adj))
+
+## Count the number of differential findings by cluster.
+# nb. & % of DE genes per cluster
+n_de <- vapply(res_fil, nrow, numeric(1))
+cbind(new_kids, n_de, p_gs = n_de / nrow(interestingClusters) * 100)
+
+```
+
+```{r}
+library(UpSetR)
+#upset(fromList(map(res_fil, "gene")))
+```
+
+```{r}
+# t-SNE colored by cluster ID
+plotReducedDim(sce, use_dimred = "TSNE", 
+    colour_by = "cluster_id", point_size = 0.8, point_alpha = 0.4) + 
+    guides(fill = guide_legend(override.aes = list(alpha = 1, size = 5)))
+
+# t-SNE colored by group ID
+plotReducedDim(sce, use_dimred = "TSNE", 
+    colour_by = "tech", point_size = 0.8, point_alpha = 0.4) + 
+    guides(fill = guide_legend(override.aes = list(alpha = 1, size = 5)))
+```
+```{r}
+# pull top-n genes for ea. cluster
+top_gs <- lapply(res_fil, function(u) u$gene[seq_len(9)])
+```
+
+```{r}
+# split cells by cluster
+cs_by_k <- split(colnames(sce), sce$cluster_id)
+
+lapply(c("cluster-0", "cluster-1", "cluster-3", "cluster-6","cluster-7","cluster-8"), function(k) {
+    gs <- top_gs[[k]]  # get top gene-hits for cluster k
+    cs <- cs_by_k[[k]] # subset cells assigned to cluster k
+    cat(k,"\n")
+    plotExpression(sce[, cs], features = gs, 
+        x = "sample_id", colour_by = "injured_st", ncol = 3) +
+        guides(fill = guide_legend(override.aes = list(size = 5, alpha = 1))) +
+        theme_classic() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+})
+```
+
+
+
