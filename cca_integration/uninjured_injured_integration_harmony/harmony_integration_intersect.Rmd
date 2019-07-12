@@ -5,7 +5,6 @@ date: ""
 output: html_document
 params:
     outputDir: "."
-    resolution: 0.8
 ---
 
 ```{r setup, include=FALSE}
@@ -225,47 +224,40 @@ all_data <- CreateSeuratObject(counts=exprs_all, project = "drosophila", min.cel
     Seurat::NormalizeData(verbose = FALSE) %>%
     FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
     ScaleData(verbose = FALSE) %>% 
-    RunPCA(pc.genes = pbmc@var.genes, npcs = 30, verbose = FALSE)
+    RunPCA(pc.genes = all_data@var.genes, npcs = 30, verbose = FALSE)
 ```
 
 ```{r}
 all_data[["percent.mito"]] <- PercentageFeatureSet(all_data, pattern = "^MT-")
 ```
 
+
+
 ```{r}
 
-all_data$injured_st <- c(
-    rep("injured", sum(
-        sum(grepl("_B2",colnames(all_data))),
-        sum(grepl("_B4",colnames(all_data))),
-        sum(grepl("_PC1",colnames(all_data))),                         
-        sum(grepl("_PC2_1",colnames(all_data)))
-    )),
-    rep("uninjured", sum(
-        sum(grepl("_B1",colnames(all_data))),
-        sum(grepl("_B3",colnames(all_data))),
-        sum(grepl("_Indrop_blood2_uninj",colnames(all_data))),
-        sum(grepl("_Indrop_blood3_uninj",colnames(all_data)))
-    )))
+all_data$injured_st <- "no_injured"
+all_data$tech <- "no_tech"
 
-all_data$tech <- c(
-    rep("10x", sum(
-        sum(grepl("_B2",colnames(all_data))),
-        sum(grepl("_B4",colnames(all_data)))
-    )),
-    rep("Indrop", sum(
-        sum(grepl("_PC1",colnames(all_data))),                         
-        sum(grepl("_PC2_1",colnames(all_data)))
-    )),
-    rep("10x", sum(
-        sum(grepl("_B1",colnames(all_data))),
-        sum(grepl("_B3",colnames(all_data)))
-    )),
-    rep("Indrop", sum(
-        sum(grepl("_Indrop_blood2_uninj",colnames(all_data))),
-        sum(grepl("_Indrop_blood3_uninj",colnames(all_data)))
-    )))
+all_data$injured_st[grepl("B1",rownames(all_data@meta.data))] <- "uninjured" 
+all_data$injured_st[grepl("B2",rownames(all_data@meta.data))] <- "injured" 
+all_data$injured_st[grepl("B3",rownames(all_data@meta.data))] <- "uninjured" 
+all_data$injured_st[grepl("B4",rownames(all_data@meta.data))] <- "injured" 
+all_data$injured_st[grepl("PC1",rownames(all_data@meta.data))] <- "injured" 
+all_data$injured_st[grepl("PC2_1",rownames(all_data@meta.data))] <- "injured" 
+all_data$injured_st[grepl("blood2_uninj",rownames(all_data@meta.data))] <- "uninjured" 
+all_data$injured_st[grepl("blood3_uninj",rownames(all_data@meta.data))] <- "uninjured"
+
+all_data$tech[grepl("B1",rownames(all_data@meta.data))] <- "10x" 
+all_data$tech[grepl("B2",rownames(all_data@meta.data))] <- "10x" 
+all_data$tech[grepl("B3",rownames(all_data@meta.data))] <- "10x" 
+all_data$tech[grepl("B4",rownames(all_data@meta.data))] <- "10x" 
+all_data$tech[grepl("PC1",rownames(all_data@meta.data))] <- "Indrop" 
+all_data$tech[grepl("PC2_1",rownames(all_data@meta.data))] <- "Indrop" 
+all_data$tech[grepl("blood2_uninj",rownames(all_data@meta.data))] <- "Indrop" 
+all_data$tech[grepl("blood3_uninj",rownames(all_data@meta.data))] <- "Indrop"
 ```
+
+
 
 ```{r}
 options(repr.plot.height = 5, repr.plot.width = 12)
@@ -281,15 +273,27 @@ p2 <- VlnPlot(object = all_data, features = "PC_1", group.by = "tech", do.return
 plot_grid(p1,p2)
 ```
 
-```{r}
-options(repr.plot.height = 2.5, repr.plot.width = 6)
-all_data <- all_data %>% 
-    RunHarmony(c("tech","injured_st"), theta = c(2,8), plot_convergence = TRUE)
+```{r, eval = FALSE}
+all_data <- JackStraw(all_data, reduction = "pca", dims = 30)
+```
+
+```{r, eval = FALSE}
+all_data <- ScoreJackStraw(all_data, dims = 1:30)
+```
+
+
+``````{r, eval = FALSE}
+JackStrawPlot(all_data, dims = 1:30)
+```
+
+```{r, eval = FALSE}
+ElbowPlot(all_data, ndims = 30)
 ```
 
 ```{r}
-harmony_embeddings <- Embeddings(all_data, 'harmony')
-harmony_embeddings[1:5, 1:5]
+options(repr.plot.height = 2.5, repr.plot.width = 6)
+all_data <- all_data %>% 
+    RunHarmony(c("tech","injured_st"), theta = c(10,2), plot_convergence = TRUE, max.iter.harmony = 30)
 ```
 
 ```{r}
@@ -302,22 +306,34 @@ p4 <- VlnPlot(object = all_data, features = "harmony_1", group.by = "tech", do.r
 plot_grid(p1,p2,p3,p4)
 ```
 
+
+
+
 ```{r}
 all_data <- all_data %>% 
     RunUMAP(reduction = "harmony", dims = 1:20) %>% 
-    FindNeighbors(reduction = "harmony", dims = 1:20) %>% 
-    FindClusters(resolution = params$resolution) %>% 
+    RunTSNE( reduction = "harmony",dims = 1:20) %>% 
+    FindNeighbors(reduction = "harmony", dims = 1:20, verbose = FALSE, force.recalc = TRUE) %>% 
+    FindClusters(resolution = seq(0.1,2,0.1), verbose = FALSE) %>% 
     identity()
 ```
 
-# Plots {.tabset}
+# UMAP - resolutions {.tabset}
 
-## clusters
-
-```{r}
+```{r, results = 'asis'}
 options(repr.plot.height = 4, repr.plot.width = 6)
-DimPlot(all_data, reduction = "umap", label = TRUE, pt.size = .1)
+for(res in seq(0.1,2,0.1)){
+  cat("\n")
+  cat("\n##","Cluster resolution: ",res,"{.tabset}\n")
+  selected_res = paste0( "RNA_snn_res.",res)
+  Idents(all_data) <- selected_res
+  p <- DimPlot(all_data, reduction = "umap", label = TRUE, pt.size = .1, split.by = "injured_st")
+  print(p)
+  cat("\n")
+}
 ```
+
+# Injury/Tech/mito - UMAP{.tabset}
 
 ## injured_st
 
@@ -339,6 +355,46 @@ DimPlot(all_data, reduction = "umap", group.by = "tech", pt.size = .1)
 options(repr.plot.height = 4, repr.plot.width = 10)
 FeaturePlot(all_data, reduction = "umap", features = c("percent.mito"), pt.size = .1)
 ```
+
+
+# TSNE - resolutions {.tabset}
+
+```{r, results = 'asis'}
+options(repr.plot.height = 4, repr.plot.width = 6)
+for(res in seq(0.1,2,0.1)){
+  cat("\n")
+  cat("\n##","Cluster resolution: ",res,"{.tabset}\n")
+  selected_res = paste0( "RNA_snn_res.",res)
+  Idents(all_data) <- selected_res
+  p <- DimPlot(all_data, reduction = "tsne", label = TRUE, pt.size = .1, split.by = "injured_st")
+  print(p)
+  cat("\n")
+}
+```
+
+# Injury/Tech/mito - TSNE {.tabset}
+
+## injured_st
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 6)
+DimPlot(all_data, reduction = "tsne", pt.size = .1, group.by = "injured_st")
+```
+
+## tech
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+DimPlot(all_data, reduction = "tsne", group.by = "tech", pt.size = .1)
+```
+
+## percent mito
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+FeaturePlot(all_data, reduction = "tsne", features = c("percent.mito"), pt.size = .1)
+```
+
 
 # Markers 
 
@@ -393,79 +449,49 @@ for(cell_t in unique(selected_genes$cellType)){
 
 ```
 
-```{r}
-DefaultAssay(all_data) <- "RNA"
-```
 
-```{r}
-res = params$resolution
-selected_res <- paste0("RNA_snn_res.",res)
-if(file.exists(file.path(resultsDir,paste0("res_",res,"_markers.Rda"))))
-{
-    load(file.path(resultsDir,paste0("res_",res,"_markers.Rda")))
-}else{
-table_df <- table(all_data@meta.data[,selected_res],all_data@meta.data$injured_st) %>% 
-    as.data.frame() %>% spread(key = Var2, value =Freq)
-colnames(table_df)[1] <- "cluster"
-markers_list <- list()
-table_df_sel <- table_df %>% dplyr::filter(injured >= 3 & uninjured >= 3)
-for(cluster_id in table_df_sel$cluster){
-    markers <- FindConservedMarkers(all_data, ident.1 = cluster_id, grouping.var = "injured_st", verbose = FALSE)
-    markers <- ann_genes(markers,rows)
-    markers_list[[paste0("cluster_",cluster_id)]] <- markers
-}
-save(markers_list, file = file.path(resultsDir,paste0("res_",res,"_markers.Rda")))
-}
-```
 
-## Clusters-TSNE {.tabset}
+## TSNE{.tabset}
 
-```{r plot_selected_genes_clusters_umap, results = "asis"}
+```{r, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneID %in% rownames(all_data))
+
+
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(all_data)[selected_genes$geneID,]))>0,]
+
 plot_feature_plot_wrapper <- function(obj,sub_df){
-    p <- FeaturePlot(obj, features = sub_df[1],cols = c("grey", "blue"), 
-reduction = "umap") + 
-        ggtitle(sub_df[1]) %>% invisible()
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "tsne",min.cutoff = 1,  split.by = "injured_st")
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
     return(p)
 }
 
-for(cluster_n in names(markers_list)){
+for(cell_t in unique(selected_genes$cellType)){
     cat("\n")
-    cat("### ",cluster_n," {.tabset} \n")
-    df <- markers_list[[`cluster_n`]][1:12,]
-    df_split <- split(df, ceiling(seq_along(df$gene_id)/6))
+    cat("###",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/4))
     for(i in names(df_split)){
         cat("\n")
-        cat("####",paste("Cluster",cluster_n,i,sep="-"),"\n")
+        cat("####",paste(cell_t,i,sep="-"),"\n")
+        
         plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data,x)})
+        
+        
         p_l <- plot_grid(plotlist = plot_list,ncol = 2)
         print(p_l)
         cat("\n")
     }
     cat("\n")
 }
+
 ```
 
-
-## Clusters-violin {.tabset}
-
-```{r plot_selected_genes_clusters_violin, results = "asis"}
-
-for(cluster_n in names(markers_list)){
-    cat("\n")
-    cat("### ",cluster_n," {.tabset} \n")
-    df <- markers_list[[`cluster_n`]][1:6,]
-    df_split <- split(df, ceiling(seq_along(df$gene_id)/1))
-    for(i in names(df_split)){
-    cat("\n")
-    cat("####",paste("Cluster",cluster_n,i,sep="-"),"\n")
-    plot <- VlnPlot(all_data, features =  df_split[[i]]$gene_id,  group.by = selected_res, 
-    pt.size = 0, combine = FALSE)
-    p <- plot[[1]]+ ggtitle(df_split[[i]]$gene_id)
-    print(p)
-    cat("\n")
-    }
-    cat("\n")
-}
+```{r}
+save(all_data, file = file.path(resultsDir, "all_data.Rda"))
 ```
-
 

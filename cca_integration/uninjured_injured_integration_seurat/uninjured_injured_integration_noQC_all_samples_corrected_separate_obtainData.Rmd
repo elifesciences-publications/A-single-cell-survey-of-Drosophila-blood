@@ -220,7 +220,7 @@ pre_regressed_Indrop_blood3_uninj$sample <- "Indrop_blood3_uninj"
 
 
 
-```{r}
+```{r, eval = FALSE}
 # merge samples
 pre_regress_all_data <- merge(x = pre_regressed_B2 ,y = c(pre_regressed_B4, pre_regressed_Indrop_PC1, 
                                                           pre_regressed_Indrop_PC2_1, pre_regressed_B1, pre_regressed_B3, pre_regressed_Indrop_blood2_uninj, pre_regressed_Indrop_blood3_uninj), 
@@ -230,12 +230,30 @@ pre_regress_all_data_list <- SplitObject(object = pre_regress_all_data, split.by
 ```
 
 
+
+```{r}
+# merge samples
+pre_regress_all_data_inj <- merge(x = pre_regressed_B2 ,y = c(pre_regressed_B4, pre_regressed_Indrop_PC1, 
+                                                          pre_regressed_Indrop_PC2_1), 
+                              add.cell.id = c("B2","B4","Ind_PC1","Ind_PC2_1"))
+# Integration
+pre_regress_all_data_list_inj <- SplitObject(object = pre_regress_all_data_inj, split.by = "sample")
+
+
+# merge samples
+pre_regress_all_data_uninj <- merge(x = pre_regressed_B1 ,y = c(pre_regressed_B3, pre_regressed_Indrop_blood2_uninj, pre_regressed_Indrop_blood3_uninj), 
+                              add.cell.id = c("B1","B3","Ind_blood2","Ind_blood3"))
+# Integration
+pre_regress_all_data_list_uninj <- SplitObject(object = pre_regress_all_data_uninj, split.by = "sample")
+
+```
+
 # Integrate
 
 ## Injured
 
 ```{r}
-pre_regress_all_data_list_inj <- pre_regress_all_data_list[c("B2","B4","Indrop_PC1","Indrop_PC2_1")]
+pre_regress_all_data_list_inj <- pre_regress_all_data_list_inj[c("B2","B4","Indrop_PC1","Indrop_PC2_1")]
 ```
 
 
@@ -309,7 +327,7 @@ rio::export(expression_cells_geneName, file = file.path(resultsDir_inj,"inj_expr
 ## UnInjured
 
 ```{r}
-pre_regress_all_data_list_uninj <- pre_regress_all_data_list[c("B1","B3","Indrop_blood2_uninj","Indrop_blood3_uninj")]
+pre_regress_all_data_list_uninj <- pre_regress_all_data_list_uninj[c("B1","B3","Indrop_blood2_uninj","Indrop_blood3_uninj")]
 ```
 
 

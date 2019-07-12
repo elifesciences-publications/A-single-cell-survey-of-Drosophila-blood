@@ -1,11 +1,10 @@
 ---
-title: "uninjured_injured_integration - Separated samples - Harmony"
+title: "uninjured_injured_integration - Harmony - ObtainData"
 author: "Victor Barrera"
 date: ""
 output: html_document
 params:
     outputDir: "."
-    resolution: 0.8
 ---
 
 ```{r setup, include=FALSE}
@@ -225,170 +224,154 @@ all_data <- CreateSeuratObject(counts=exprs_all, project = "drosophila", min.cel
     Seurat::NormalizeData(verbose = FALSE) %>%
     FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
     ScaleData(verbose = FALSE) %>% 
-    RunPCA(pc.genes = pbmc@var.genes, npcs = 30, verbose = FALSE)
+    RunPCA(pc.genes = all_data@var.genes, npcs = 30, verbose = FALSE)
 ```
 
 ```{r}
 all_data[["percent.mito"]] <- PercentageFeatureSet(all_data, pattern = "^MT-")
 ```
 
-```{r}
 
-all_data$injured_st <- c(
-    rep("injured", sum(
-        sum(grepl("_B2",colnames(all_data))),
-        sum(grepl("_B4",colnames(all_data))),
-        sum(grepl("_PC1",colnames(all_data))),                         
-        sum(grepl("_PC2_1",colnames(all_data)))
-    )),
-    rep("uninjured", sum(
-        sum(grepl("_B1",colnames(all_data))),
-        sum(grepl("_B3",colnames(all_data))),
-        sum(grepl("_Indrop_blood2_uninj",colnames(all_data))),
-        sum(grepl("_Indrop_blood3_uninj",colnames(all_data)))
-    )))
-
-all_data$tech <- c(
-    rep("10x", sum(
-        sum(grepl("_B2",colnames(all_data))),
-        sum(grepl("_B4",colnames(all_data)))
-    )),
-    rep("Indrop", sum(
-        sum(grepl("_PC1",colnames(all_data))),                         
-        sum(grepl("_PC2_1",colnames(all_data)))
-    )),
-    rep("10x", sum(
-        sum(grepl("_B1",colnames(all_data))),
-        sum(grepl("_B3",colnames(all_data)))
-    )),
-    rep("Indrop", sum(
-        sum(grepl("_Indrop_blood2_uninj",colnames(all_data))),
-        sum(grepl("_Indrop_blood3_uninj",colnames(all_data)))
-    )))
-```
 
 ```{r}
-options(repr.plot.height = 5, repr.plot.width = 12)
-p1 <- DimPlot(object = all_data, reduction = "pca", pt.size = .1, group.by = "injured_st", do.return = TRUE)
-p2 <- VlnPlot(object = all_data, features = "PC_1", group.by = "injured_st", do.return = TRUE, pt.size = .1)
-plot_grid(p1,p2)
-```
 
-```{r}
-options(repr.plot.height = 5, repr.plot.width = 12)
-p1 <- DimPlot(object = all_data, reduction = "pca", pt.size = .1, group.by = "tech", do.return = TRUE)
-p2 <- VlnPlot(object = all_data, features = "PC_1", group.by = "tech", do.return = TRUE, pt.size = .1)
-plot_grid(p1,p2)
+all_data$injured_st <- "no_injured"
+all_data$tech <- "no_tech"
+
+all_data$injured_st[grepl("B1",rownames(all_data@meta.data))] <- "uninjured" 
+all_data$injured_st[grepl("B2",rownames(all_data@meta.data))] <- "injured" 
+all_data$injured_st[grepl("B3",rownames(all_data@meta.data))] <- "uninjured" 
+all_data$injured_st[grepl("B4",rownames(all_data@meta.data))] <- "injured" 
+all_data$injured_st[grepl("PC1",rownames(all_data@meta.data))] <- "injured" 
+all_data$injured_st[grepl("PC2_1",rownames(all_data@meta.data))] <- "injured" 
+all_data$injured_st[grepl("blood2_uninj",rownames(all_data@meta.data))] <- "uninjured" 
+all_data$injured_st[grepl("blood3_uninj",rownames(all_data@meta.data))] <- "uninjured"
+
+all_data$tech[grepl("B1",rownames(all_data@meta.data))] <- "10x" 
+all_data$tech[grepl("B2",rownames(all_data@meta.data))] <- "10x" 
+all_data$tech[grepl("B3",rownames(all_data@meta.data))] <- "10x" 
+all_data$tech[grepl("B4",rownames(all_data@meta.data))] <- "10x" 
+all_data$tech[grepl("PC1",rownames(all_data@meta.data))] <- "Indrop" 
+all_data$tech[grepl("PC2_1",rownames(all_data@meta.data))] <- "Indrop" 
+all_data$tech[grepl("blood2_uninj",rownames(all_data@meta.data))] <- "Indrop" 
+all_data$tech[grepl("blood3_uninj",rownames(all_data@meta.data))] <- "Indrop"
 ```
 
 ```{r}
 options(repr.plot.height = 2.5, repr.plot.width = 6)
 all_data <- all_data %>% 
-    RunHarmony(c("tech","injured_st"), theta = c(2,8), plot_convergence = TRUE)
+    RunHarmony(c("tech","injured_st"), theta = c(10,2), plot_convergence = TRUE, max.iter.harmony = 30, verbose = FALSE)
 ```
 
-```{r}
-harmony_embeddings <- Embeddings(all_data, 'harmony')
-harmony_embeddings[1:5, 1:5]
-```
-
-```{r}
-options(repr.plot.height = 5, repr.plot.width = 12)
-p1 <- DimPlot(object = all_data, reduction = "harmony", pt.size = .1, group.by = "injured_st", do.return = TRUE)
-p2 <- DimPlot(object = all_data, reduction = "harmony", pt.size = .1, group.by = "tech", do.return = TRUE)
-p3 <- VlnPlot(object = all_data, features = "harmony_1", group.by = "injured_st", do.return = TRUE, pt.size = .1)
-p4 <- VlnPlot(object = all_data, features = "harmony_1", group.by = "tech", do.return = TRUE, pt.size = .1)
-
-plot_grid(p1,p2,p3,p4)
-```
 
 ```{r}
 all_data <- all_data %>% 
     RunUMAP(reduction = "harmony", dims = 1:20) %>% 
-    FindNeighbors(reduction = "harmony", dims = 1:20) %>% 
-    FindClusters(resolution = params$resolution) %>% 
+    RunTSNE( reduction = "harmony",dims = 1:20) %>% 
+    FindNeighbors(reduction = "harmony", dims = 1:20, verbose = FALSE, force.recalc = TRUE) %>% 
+    FindClusters(resolution = seq(0.1,2,0.1), verbose = FALSE) %>% 
     identity()
 ```
 
-# Plots {.tabset}
-
-## clusters
-
 ```{r}
-options(repr.plot.height = 4, repr.plot.width = 6)
-DimPlot(all_data, reduction = "umap", label = TRUE, pt.size = .1)
-```
+## Coordinates
+tSNE_coord_all <- FetchData(all_data, vars = c("tSNE_1","tSNE_2")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell")
+umap_coord_all <- FetchData(all_data, vars = c("UMAP_1","UMAP_2")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell")
 
-## injured_st
+rio::export(tSNE_coord_all, file = file.path(resultsDir,"all_tSNE_coord.tsv.gz"))
+rio::export(umap_coord_all, file = file.path(resultsDir,"all_umap_coord.tsv.gz"))
 
-```{r}
-options(repr.plot.height = 4, repr.plot.width = 6)
-DimPlot(all_data, reduction = "umap", pt.size = .1, group.by = "injured_st")
-```
+## Injured
 
-## tech
+injured_cells <- subset(all_data, subset = injured_st == "injured")
 
-```{r}
-options(repr.plot.height = 4, repr.plot.width = 10)
-DimPlot(all_data, reduction = "umap", group.by = "tech", pt.size = .1)
-```
+tSNE_coord_inj <- FetchData(injured_cells, vars = c("tSNE_1","tSNE_2")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell")
+umap_coord_inj <- FetchData(injured_cells, vars = c("UMAP_1","UMAP_2")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell")
 
-## percent mito
+rio::export(tSNE_coord_inj, file = file.path(resultsDir,"inj_tSNE_coord.tsv.gz"))
+rio::export(umap_coord_inj, file = file.path(resultsDir,"inj_umap_coord.tsv.gz"))
 
-```{r}
-options(repr.plot.height = 4, repr.plot.width = 10)
-FeaturePlot(all_data, reduction = "umap", features = c("percent.mito"), pt.size = .1)
-```
+## Uninjured
 
-# Markers 
+uninjured_cells <- subset(all_data, subset = injured_st == "uninjured")
 
-```{r}
-selected_genes <- rio::import("./markers.csv")
-```
+tSNE_coord_uninj <- FetchData(uninjured_cells, vars = c("tSNE_1","tSNE_2")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell")
+umap_coord_uninj <- FetchData(uninjured_cells, vars = c("UMAP_1","UMAP_2")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell")
 
-Genes:
-
-```{r}
-DT::datatable(selected_genes)
+rio::export(tSNE_coord_uninj, file = file.path(resultsDir,"uninj_tSNE_coord.tsv.gz"))
+rio::export(umap_coord_uninj, file = file.path(resultsDir,"uninj_umap_coord.tsv.gz"))
 ```
 
 
-## UMAP{.tabset}
+```{r }
+res = 0.6
 
-```{r, results = "asis"}
-selected_genes <- selected_genes %>% dplyr::filter(geneID %in% rownames(all_data))
+selected_res <- paste0("RNA_snn_res.",res)
+Idents(all_data) <- selected_res
+cluster_id <- FetchData(all_data, vars = c("ident","injured_st")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell") %>% 
+dplyr::rename(cluster = ident)
+rio::export(cluster_id, file = file.path(resultsDir,paste0("all_res_",res, "_cluster_id.tsv.gz")))
+
+cluster_id_inj <- cluster_id  %>% dplyr::filter(injured_st == "injured")
+
+rio::export(cluster_id_inj, file = file.path(resultsDir,paste0("inj_res_",res, "_cluster_id.tsv.gz")))
+
+cluster_id_uninj <- cluster_id  %>% dplyr::filter(injured_st == "uninjured")
+
+rio::export(cluster_id_uninj, file = file.path(resultsDir,paste0("uninj_res_",res, "_cluster_id.tsv.gz")))
+```
+
+```{r}
+## Expression
+
+expression_cells <- GetAssayData(object = all_data, slot = "data") %>% as.matrix() %>% as.data.frame() %>% 
+    tibble::rownames_to_column(var = "geneID")
+
+expression_cells_geneName <- rows %>% dplyr::inner_join(expression_cells, by = c("gene_id" = "geneID"))
+
+rio::export(expression_cells, file = file.path(resultsDir,"all_expression_cells.tsv.gz"))
+rio::export(expression_cells_geneName, file = file.path(resultsDir,"all_expression_cells_geneName.tsv.gz"))
+
+## Injured
+
+expression_cells_inj <- GetAssayData(object = injured_cells, slot = "data") %>% as.matrix() %>% as.data.frame() %>% 
+    tibble::rownames_to_column(var = "geneID")
+
+expression_cells_geneName_inj <- rows %>% dplyr::inner_join(expression_cells_inj, by = c("gene_id" = "geneID"))
+
+rio::export(expression_cells_inj, file = file.path(resultsDir,"inj_expression_cells.tsv.gz"))
+rio::export(expression_cells_geneName_inj, file = file.path(resultsDir,"inj_expression_cells_geneName.tsv.gz"))
+
+## Uninjured
+
+expression_cells_uninj <- GetAssayData(object = uninjured_cells, slot = "data") %>% as.matrix() %>% as.data.frame() %>% 
+    tibble::rownames_to_column(var = "geneID")
+
+expression_cells_geneName_uninj <- rows %>% dplyr::inner_join(expression_cells_uninj, by = c("gene_id" = "geneID"))
+
+rio::export(expression_cells_uninj, file = file.path(resultsDir,"uninj_expression_cells.tsv.gz"))
+rio::export(expression_cells_geneName_uninj, file = file.path(resultsDir,"uninj_expression_cells_geneName.tsv.gz"))
+```
 
 
-selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(all_data)[selected_genes$geneID,]))>0,]
+```{r}
+Idents(all_data) <- selected_res
+all_data$cluster <- Idents(all_data)
+all_data$cluster[all_data$cluster %in% c(1,2,3,4,5)] <- 1
+all_data$cluster <- droplevels(all_data$cluster)
+Idents(all_data) <- "cluster"
+```
 
-plot_feature_plot_wrapper <- function(obj,sub_df){
-    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
-reduction = "umap",min.cutoff = 1,  split.by = "injured_st")
-    if(is.na(sub_df[3])){
-       p <- p + ggtitle(sub_df[2]) %>% invisible()
-    }else{
-       p <- p + ggtitle(sub_df[3]) %>% invisible()
-    }
-    return(p)
-}
+```{r }
+cluster_id <- FetchData(all_data, vars = c("ident","injured_st")) %>% as.data.frame() %>% tibble::rownames_to_column(var = "cell") %>% 
+dplyr::rename(cluster = ident)
+rio::export(cluster_id, file = file.path(resultsDir,paste0("all_res_",res, "_cluster_id_renamedClusters.tsv.gz")))
 
-for(cell_t in unique(selected_genes$cellType)){
-    cat("\n")
-    cat("###",cell_t," {.tabset} \n")
-    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
-    df_split <- split(df, ceiling(seq_along(df$geneID)/4))
-    for(i in names(df_split)){
-        cat("\n")
-        cat("####",paste(cell_t,i,sep="-"),"\n")
-        
-        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data,x)})
-        
-        
-        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
-        print(p_l)
-        cat("\n")
-    }
-    cat("\n")
-}
+cluster_id_inj <- cluster_id  %>% dplyr::filter(injured_st == "injured")
 
+rio::export(cluster_id_inj, file = file.path(resultsDir,paste0("inj_res_",res, "_cluster_id_renamedClusters.tsv.gz")))
+
+cluster_id_uninj <- cluster_id  %>% dplyr::filter(injured_st == "uninjured")
+
+rio::export(cluster_id_uninj, file = file.path(resultsDir,paste0("uninj_res_",res, "_cluster_id_renamedClusters.tsv.gz")))
 ```

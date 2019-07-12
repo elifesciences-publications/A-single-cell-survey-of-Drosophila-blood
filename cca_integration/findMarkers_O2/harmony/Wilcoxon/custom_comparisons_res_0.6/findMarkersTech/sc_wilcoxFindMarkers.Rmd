@@ -1,0 +1,347 @@
+---
+title: "Find Markers"
+author: "Victor Barrera"
+date: ""
+output: html_document
+params:
+    outputDir: "."
+    resolution: 0.6
+    clusters_file: "./all_data.Rda"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE ,warning = FALSE}
+# Shared R Markdown settings
+if (file.exists("_setup.R")) {
+    source("_setup.R")
+}
+```
+
+```{r}
+# Create folders
+resultsDir <- file.path(params$outputDir, "results",Sys.Date(),"intersect",params$resolution)
+invisible(mapply(
+    FUN = dir.create,
+    list(resultsDir),
+    MoreArgs = list(recursive = TRUE, showWarnings = FALSE)
+))
+
+
+```
+
+```{r}
+# Specify seed for reproducibility
+set.seed(1234567890)
+```
+
+```{r check-library-functions, echo=FALSE, message=FALSE}
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+
+# function to check installed libraries
+check_install = function(packages) {
+    not_installed = setdiff(packages, rownames(installed.packages()))
+    if (length(not_installed) > 0) {
+        write(paste("The libraries", not_installed, "are not installed, aborting.",
+                    sep = " "), stderr())
+        stop()
+    }
+}
+```
+
+```{r load-libraries, echo=FALSE, message=FALSE, warning=FALSE}
+# load requiered library after checking if installed
+packages = c("Seurat", "reticulate","AnnotationHub","ggplot2","cowplot", "dplyr", "harmony", "tidyr")
+check_install(packages)
+installed = lapply(packages, library, character.only = TRUE)
+```
+
+```{r}
+# load conda environment that contains umap-learning for umap plots
+use_condaenv("bioPython", conda = "~/software/miniconda2/bin/conda", required = TRUE)
+```
+
+```{r}
+ah <- AnnotationHub()
+ahDb <- query(ah, pattern = c("Drosophila Melanogaster","EnsDb") )
+
+id <- ahDb %>% 
+     mcols() %>%  
+        rownames() %>%
+        tail(n = 1)
+
+## Download the appropriate Ensembldb database
+ahEnsdb <- ahDb[[id]]
+
+rows <- genes(ahEnsdb)  %>% 
+    as.data.frame() %>% 
+    dplyr::mutate(gene_name = toupper(gene_name)) %>% 
+    dplyr::select(c(gene_id,gene_name))
+```
+
+```{r}
+ann_genes <- function(df, ann_df){
+    df <- df %>% tibble::rownames_to_column(var = "gene_id")
+    colnames(ann_df) <- c("gene_id","gene_name")
+    joined_df <- dplyr::left_join(df, ann_df, by = "gene_id")
+    joined_df <- joined_df %>% dplyr::mutate(gene_name = ifelse(is.na(gene_name),gene_id,gene_name)) 
+    return(invisible(joined_df))
+}
+```
+
+
+```{r}
+load(params$clusters_file)
+```
+
+```{r}
+DefaultAssay(all_data) <- "RNA"
+```
+```{r}
+res = params$resolution
+selected_res <- paste0("RNA_snn_res.",res)
+Idents(all_data) <- selected_res
+all_data$cluster <- Idents(all_data)
+all_data$cluster[all_data$cluster %in% c(1,2,3,4,5)] <- 1
+all_data$cluster <- droplevels(all_data$cluster)
+Idents(all_data) <- "cluster"
+```
+# Data Structure {.tabset}
+
+## UMAP
+
+```{r}
+DimPlot(all_data, reduction = "umap", label = TRUE, pt.size = .1)
+```
+
+## TSNE
+
+```{r}
+DimPlot(all_data, reduction = "tsne", label = TRUE, pt.size = .1)
+```
+
+```{r}
+
+if(file.exists(file.path(resultsDir,paste0("res_",res,"_markers_customComparisons_conserved.Rda"))))
+{
+    load(file.path(resultsDir,paste0("res_",res,"_markers_customComparisons_conserved.Rda")))
+}else{
+
+markers_list_conserved <- list()
+    
+# 10 vs 6
+
+markers <- FindConservedMarkers(all_data, ident.1 = 10, ident.2 = 6, grouping.var = "tech", verbose = FALSE)
+markers <- ann_genes(markers,rows)
+markers_list_conserved[[paste0("cluster_10vs6")]] <- markers
+
+# 8 vs 13
+
+markers <- FindConservedMarkers(all_data, ident.1 = 8, ident.2 = 13, grouping.var = "tech", verbose = FALSE)
+markers <- ann_genes(markers,rows)
+markers_list_conserved[[paste0("cluster_8vs13")]] <- markers
+
+# 14 vs 1
+
+markers <- FindConservedMarkers(all_data, ident.1 = 14, ident.2 = 1, grouping.var = "tech", verbose = FALSE)
+markers <- ann_genes(markers,rows)
+markers_list_conserved[[paste0("cluster_14vs1")]] <- markers
+
+
+save(markers_list_conserved, file = file.path(resultsDir,paste0("res_",res,"_markers_customComparisons_conserved.Rda")))
+}
+```
+
+
+```{r}
+
+if(file.exists(file.path(resultsDir,paste0("res_",res,"_markers_customComparisons.Rda"))))
+{
+    load(file.path(resultsDir,paste0("res_",res,"_markers_customComparisons.Rda")))
+}else{
+
+markers_list <- list()
+    
+# 10 vs 6
+
+markers <- FindMarkers(all_data, ident.1 = 10, ident.2 = 6, verbose = FALSE)
+markers <- ann_genes(markers,rows)
+markers_list[[paste0("cluster_10vs6")]] <- markers
+
+# 8 vs 13
+
+markers <- FindMarkers(all_data, ident.1 = 8, ident.2 = 13, verbose = FALSE)
+markers <- ann_genes(markers,rows)
+markers_list[[paste0("cluster_8vs13")]] <- markers
+
+# 14 vs 1
+
+markers <- FindMarkers(all_data, ident.1 = 14, ident.2 = 1, verbose = FALSE)
+markers <- ann_genes(markers,rows)
+markers_list[[paste0("cluster_14vs1")]] <- markers
+
+
+save(markers_list, file = file.path(resultsDir,paste0("res_",res,"_markers_customComparisons.Rda")))
+}
+```
+
+# Clusters
+
+## Clusters-UMAP {.tabset}
+
+```{r plot_marker_genes_clusters_umap, results = "asis"}
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[1],cols = c("grey", "blue"), 
+reduction = "umap") + 
+        ggtitle(sub_df[1]) %>% invisible()
+    return(p)
+}
+
+for(cluster_n in names(markers_list)){
+    cat("\n")
+    cat("### ",cluster_n," {.tabset} \n")
+    df <- markers_list[[`cluster_n`]][1:min(12,dim(markers_list[[`cluster_n`]])[1]),]
+    df_split <- split(df, ceiling(seq_along(df$gene_id)/6))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####",paste("Cluster",cluster_n,i,sep="-"),"\n")
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data,x)})
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+```
+
+## Clusters-TSNE {.tabset}
+
+```{r plot_marker_genes_clusters_tsne, results = "asis"}
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[1],cols = c("grey", "blue"),
+reduction = "tsne") +
+        ggtitle(sub_df[1]) %>% invisible()
+    return(p)
+}
+
+for(cluster_n in names(markers_list)){
+    cat("\n")
+    cat("### ",cluster_n," {.tabset} \n")
+    df <- markers_list[[`cluster_n`]][1:min(12,dim(markers_list[[`cluster_n`]])[1]),]
+    df_split <- split(df, ceiling(seq_along(df$gene_id)/6))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####",paste("Cluster",cluster_n,i,sep="-"),"\n")
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data,x)})
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+```
+
+
+## Clusters-violin {.tabset}
+
+```{r plot_marker_genes_clusters_violin, results = "asis"}
+
+for(cluster_n in names(markers_list)){
+    cat("\n")
+    cat("### ",cluster_n," {.tabset} \n")
+    df <- markers_list[[`cluster_n`]][1:6,]
+    df_split <- split(df, ceiling(seq_along(df$gene_id)/1))
+    for(i in names(df_split)){
+    cat("\n")
+    cat("####",paste("Cluster",cluster_n,i,sep="-"),"\n")
+    plot <- VlnPlot(all_data, features =  df_split[[i]]$gene_id,  group.by = "cluster", 
+    pt.size = 0, combine = FALSE)
+    p <- plot[[1]]+ ggtitle(df_split[[i]]$gene_id)
+    print(p)
+    cat("\n")
+    }
+    cat("\n")
+}
+```
+
+# Clusters_conserved
+
+## Clusters-UMAP {.tabset}
+
+```{r plot_marker_genes_clusters_umap_conserved, results = "asis"}
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[1],cols = c("grey", "blue"), 
+reduction = "umap") + 
+        ggtitle(sub_df[1]) %>% invisible()
+    return(p)
+}
+
+for(cluster_n in names(markers_list_conserved)){
+    cat("\n")
+    cat("### ",cluster_n," {.tabset} \n")
+    df <- markers_list_conserved[[`cluster_n`]][1:min(12,dim(markers_list_conserved[[`cluster_n`]])[1]),]
+    df_split <- split(df, ceiling(seq_along(df$gene_id)/6))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####",paste("Cluster",cluster_n,i,sep="-"),"\n")
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data,x)})
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+```
+
+## Clusters-TSNE {.tabset}
+
+```{r plot_marker_genes_clusters_tsne_conserved, results = "asis"}
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[1],cols = c("grey", "blue"),
+reduction = "tsne") +
+        ggtitle(sub_df[1]) %>% invisible()
+    return(p)
+}
+
+for(cluster_n in names(markers_list_conserved)){
+    cat("\n")
+    cat("### ",cluster_n," {.tabset} \n")
+    df <- markers_list_conserved[[`cluster_n`]][1:min(12,dim(markers_list_conserved[[`cluster_n`]])[1]),]
+    df_split <- split(df, ceiling(seq_along(df$gene_id)/6))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####",paste("Cluster",cluster_n,i,sep="-"),"\n")
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data,x)})
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+```
+
+
+## Clusters-violin {.tabset}
+
+```{r plot_marker_genes_clusters_violin_conserved, results = "asis"}
+
+for(cluster_n in names(markers_list_conserved)){
+    cat("\n")
+    cat("### ",cluster_n," {.tabset} \n")
+    df <- markers_list_conserved[[`cluster_n`]][1:6,]
+    df_split <- split(df, ceiling(seq_along(df$gene_id)/1))
+    for(i in names(df_split)){
+    cat("\n")
+    cat("####",paste("Cluster",cluster_n,i,sep="-"),"\n")
+    plot <- VlnPlot(all_data, features =  df_split[[i]]$gene_id,  group.by = "cluster", 
+    pt.size = 0, combine = FALSE)
+    p <- plot[[1]]+ ggtitle(df_split[[i]]$gene_id)
+    print(p)
+    cat("\n")
+    }
+    cat("\n")
+}
+```
