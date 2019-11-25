@@ -1,0 +1,2 @@
+- harmony_integration_intersect.Rmd. Code for integration with harmony.
+- harmony_integration_intersect_findMarkers.Rmd. Base code to find markers. Adapted to use on O2. Check findMarkers_O2 folder.

@@ -1,0 +1,303 @@
+---
+title: "uninjured_injured_integration - Separated samples - Harmony"
+author: "Victor Barrera"
+date: ""
+output: html_document
+params:
+    outputDir: "."
+    integrated_file: "./results/2019-07-25/intersect/all_data.Rda"
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE ,warning = FALSE}
+# Shared R Markdown settings
+if (file.exists("_setup.R")) {
+    source("_setup.R")
+}
+```
+
+```{r}
+# Specify seed for reproducibility
+set.seed(1234567890)
+```
+
+```{r check-library-functions, echo=FALSE, message=FALSE}
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+
+# function to check installed libraries
+check_install = function(packages) {
+    not_installed = setdiff(packages, rownames(installed.packages()))
+    if (length(not_installed) > 0) {
+        write(paste("The libraries", not_installed, "are not installed, aborting.",
+                    sep = " "), stderr())
+        stop()
+    }
+}
+```
+
+```{r load-libraries, echo=FALSE, message=FALSE, warning=FALSE}
+# load requiered library after checking if installed
+packages = c("Seurat", "reticulate","AnnotationHub","ggplot2","cowplot", "dplyr", "harmony")
+check_install(packages)
+installed = lapply(packages, library, character.only = TRUE)
+```
+
+```{r}
+# load conda environment that contains umap-learning for umap plots
+use_condaenv("bioPython", conda = "/Users/victorbarrera/software/miniconda2/bin/conda", required = TRUE)
+```
+
+```{r}
+ah <- AnnotationHub()
+ahDb <- query(ah, pattern = c("Drosophila Melanogaster","EnsDb") )
+
+id <- ahDb %>% 
+     mcols() %>%  
+        rownames() %>%
+        tail(n = 1)
+
+## Download the appropriate Ensembldb database
+ahEnsdb <- ahDb[[id]]
+
+rows <- genes(ahEnsdb)  %>% 
+    as.data.frame() %>% 
+    dplyr::mutate(gene_name = toupper(gene_name)) %>% 
+    dplyr::select(c(gene_id,gene_name))
+```
+
+```{r}
+ann_genes <- function(df, ann_df){
+    df <- df %>% tibble::rownames_to_column(var = "gene_id")
+    colnames(ann_df) <- c("gene_id","gene_name")
+    joined_df <- dplyr::left_join(df, ann_df, by = "gene_id")
+    joined_df <- joined_df %>% dplyr::mutate(gene_name = ifelse(is.na(gene_name),gene_id,gene_name)) 
+    return(invisible(joined_df))
+}
+```
+
+```{r, load-data}
+load(params$integrated_file)
+```
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 12)
+p1 <- DimPlot(object = all_data, reduction = "pca", pt.size = .1, group.by = "injured_st", do.return = TRUE)
+p2 <- VlnPlot(object = all_data, features = "PC_1", group.by = "injured_st", do.return = TRUE, pt.size = .1)
+plot_grid(p1,p2)
+```
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 12)
+p1 <- DimPlot(object = all_data, reduction = "pca", pt.size = .1, group.by = "tech", do.return = TRUE)
+p2 <- VlnPlot(object = all_data, features = "PC_1", group.by = "tech", do.return = TRUE, pt.size = .1)
+plot_grid(p1,p2)
+```
+
+```{r, eval = FALSE}
+all_data <- JackStraw(all_data, reduction = "pca", dims = 30)
+```
+
+```{r, eval = FALSE}
+all_data <- ScoreJackStraw(all_data, dims = 1:30)
+```
+
+
+``````{r, eval = FALSE}
+JackStrawPlot(all_data, dims = 1:30)
+```
+
+```{r, eval = FALSE}
+ElbowPlot(all_data, ndims = 30)
+```
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 12)
+p1 <- DimPlot(object = all_data, reduction = "harmony", pt.size = .1, group.by = "injured_st", do.return = TRUE)
+p2 <- DimPlot(object = all_data, reduction = "harmony", pt.size = .1, group.by = "tech", do.return = TRUE)
+p3 <- VlnPlot(object = all_data, features = "harmony_1", group.by = "injured_st", do.return = TRUE, pt.size = .1)
+p4 <- VlnPlot(object = all_data, features = "harmony_1", group.by = "tech", do.return = TRUE, pt.size = .1)
+
+plot_grid(p1,p2,p3,p4)
+```
+
+
+
+
+
+# UMAP - resolutions {.tabset}
+
+```{r, results = 'asis'}
+options(repr.plot.height = 4, repr.plot.width = 6)
+for(res in seq(0.1,2,0.1)){
+  cat("\n")
+  cat("\n##","Cluster resolution: ",res,"{.tabset}\n")
+  selected_res = paste0( "RNA_snn_res.",res)
+  Idents(all_data) <- selected_res
+  p <- DimPlot(all_data, reduction = "umap", label = TRUE, pt.size = .1, split.by = "injured_st")
+  print(p)
+  cat("\n")
+}
+```
+
+# Injury/Tech/mito - UMAP{.tabset}
+
+## injured_st
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 6)
+DimPlot(all_data, reduction = "umap", pt.size = .1, group.by = "injured_st")
+```
+
+## tech
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+DimPlot(all_data, reduction = "umap", group.by = "tech", pt.size = .1)
+```
+
+## percent mito
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+FeaturePlot(all_data, reduction = "umap", features = c("percent.mito"), pt.size = .1)
+```
+
+
+# TSNE - resolutions {.tabset}
+
+```{r, results = 'asis'}
+options(repr.plot.height = 4, repr.plot.width = 6)
+for(res in seq(0.1,2,0.1)){
+  cat("\n")
+  cat("\n##","Cluster resolution: ",res,"{.tabset}\n")
+  selected_res = paste0( "RNA_snn_res.",res)
+  Idents(all_data) <- selected_res
+  p <- DimPlot(all_data, reduction = "tsne", label = TRUE, pt.size = .1, split.by = "injured_st")
+  print(p)
+  cat("\n")
+}
+```
+
+# Injury/Tech/mito - TSNE {.tabset}
+
+## injured_st
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 6)
+DimPlot(all_data, reduction = "tsne", pt.size = .1, group.by = "injured_st")
+```
+
+## tech
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+DimPlot(all_data, reduction = "tsne", group.by = "tech", pt.size = .1)
+```
+
+## percent mito
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+FeaturePlot(all_data, reduction = "tsne", features = c("percent.mito"), pt.size = .1)
+```
+
+
+# Markers 
+
+```{r}
+selected_genes <- rio::import("./markers.csv")
+```
+
+Genes:
+
+```{r}
+DT::datatable(selected_genes)
+```
+
+
+## UMAP{.tabset}
+
+```{r, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneID %in% rownames(all_data))
+
+
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(all_data)[selected_genes$geneID,]))>0,]
+
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "umap",min.cutoff = 1,  split.by = "injured_st")
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
+    return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+    cat("\n")
+    cat("###",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/4))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####",paste(cell_t,i,sep="-"),"\n")
+        
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data,x)})
+        
+        
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+
+```
+
+
+
+## TSNE{.tabset}
+
+```{r, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneID %in% rownames(all_data))
+
+
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(all_data)[selected_genes$geneID,]))>0,]
+
+plot_feature_plot_wrapper <- function(obj,sub_df){
+    p <- FeaturePlot(obj, features = sub_df[2],cols = c("grey", "blue"), 
+reduction = "tsne",min.cutoff = 1,  split.by = "injured_st")
+    if(is.na(sub_df[3])){
+       p <- p + ggtitle(sub_df[2]) %>% invisible()
+    }else{
+       p <- p + ggtitle(sub_df[3]) %>% invisible()
+    }
+    return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+    cat("\n")
+    cat("###",cell_t," {.tabset} \n")
+    df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+    df_split <- split(df, ceiling(seq_along(df$geneID)/4))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####",paste(cell_t,i,sep="-"),"\n")
+        
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(all_data,x)})
+        
+        
+        p_l <- plot_grid(plotlist = plot_list,ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+
+```
