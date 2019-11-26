@@ -1,0 +1,347 @@
+---
+title: "planC: merge cluster 0, 1, 14, 19 into 0"
+author: "Yifang Liu"
+date: "`r format(Sys.time(), tz='America/New_York', usetz=TRUE)`"
+output:
+  rmdformats::html_clean:
+    code_folding: hide
+    fig_width: 10
+    fig_height: 10
+    highlight: kate
+    thumbnails: false
+    lightbox: true
+    gallery: true
+---
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print = 200)
+opts_chunk$set(echo = TRUE,
+               cache = FALSE,
+               prompt = FALSE,
+               tidy = TRUE,
+               comment = NA,
+               message = FALSE,
+               warning = FALSE)
+opts_knit$set(width = 75)
+```
+
+```{r setup}
+# Specify seed for reproducibility
+set.seed(123)
+
+# Setup
+library(Matrix)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(Seurat)
+library(cowplot)
+library(Rcpp)
+library(harmony)
+```
+
+# Before merge cluster
+
+```{r before_merge}
+blood <- readRDS("/Users/m/Projects/Sudhir/Harmony/UNinjured_injured_WASP96hr_res_0.3_0.4_190826/output/blood_190826.Rds")
+DefaultAssay(blood) <- "RNA"
+resolution <- 0.4
+selected_res <- paste0("RNA_snn_res.", resolution)
+Idents(blood) <- selected_res
+DimPlot(blood, reduction = "tsne", label = TRUE, pt.size = .05)
+```
+
+# After merge cluster 0, 1, 14, 19 into 0
+
+```{r after_merge}
+# str(blood@meta.data)
+merge_cluster <- as.numeric(as.character(blood@meta.data$RNA_snn_res.0.4))
+merge_cluster[merge_cluster == 1] <- 0
+merge_cluster[merge_cluster == 14] <- 0
+merge_cluster[merge_cluster == 19] <- 0
+blood@meta.data$merge_cluster <- as.factor(merge_cluster)
+# str(blood@meta.data)
+# write.table(blood@meta.data, file = "planC_metadata.txt", quote = FALSE, sep = "\t")
+selected_res <- "merge_cluster"
+Idents(blood) <- selected_res
+DimPlot(blood, reduction = "tsne", label = TRUE, pt.size = .05)
+saveRDS(blood, file = "output/blood_190912.Rds")
+```
+
+```{r findMarkers}
+if (file.exists("output/planC_UNinjured_injured_WASP96hr.Rds")) {
+  markers_list <- readRDS("output/planC_UNinjured_injured_WASP96hr.Rds")
+}else{
+  gene_symbol_id <- read.table("/Users/m/Projects/Sudhir/Harmony/UNinjured_injured_WASP96hr_res_0.3_0.4_190826/data/gene_symbol_id_v2.txt", stringsAsFactors = FALSE, row.names = 1)
+  table_df <- table(blood@meta.data[ , selected_res], blood@meta.data$Sample) %>%
+    as.data.frame() %>% spread(key = Var2, value = Freq)
+  colnames(table_df)[1] <- "cluster"
+  markers_list <- list()
+  for(cluster_id in table_df$cluster){
+      markers <- FindMarkers(blood, ident.1 = cluster_id)
+      markers$gene_name <- row.names(markers)
+      markers$gene_id <- gene_symbol_id[markers$gene_name, ]
+      write.csv(markers, file = paste0("output/planC_UNinjured_injured_WASP96hr_", "cluster_", cluster_id, ".csv"))
+      markers_list[[paste0("cluster_", cluster_id)]] <- markers
+  }
+  saveRDS(markers_list,
+          file = "output/planC_UNinjured_injured_WASP96hr.Rds")
+}
+```
+
+## Clusters - t-SNE {.tabset}
+
+```{r plot_marker_genes_clusters_tsne, results = "asis"}
+plot_feature_plot_wrapper <- function(obj, sub_df){
+  # print(sub_df["gene_name"])
+  p <- FeaturePlot(obj, features = sub_df["gene_name"], cols = c("grey", "blue"),
+                   reduction = "tsne", pt.size = .05)
+  return(p)
+}
+
+for(cluster_n in names(markers_list)){
+  cat("\n")
+  cat("### ", cluster_n, " {.tabset} \n")
+  # df <- markers_list[[`cluster_n`]][1:min(12,dim(markers_list[[`cluster_n`]])[1]),]
+  df <- markers_list[[`cluster_n`]]
+  df <- subset(df, df$avg_logFC > 0)
+  df <- df[1:min(20,dim(df)[1]), ]
+  df_split <- split(df, ceiling(seq_along(df$gene_name)/4))
+  for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cluster_n, i, sep = "-"), "\n")
+    plot_list <- apply(df_split[[i]], 1, FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+    p_l <- plot_grid(plotlist = plot_list, ncol = 2)
+    print(p_l)
+    cat("\n")
+  }
+  cat("\n")
+}
+```
+
+## Clusters - t-SNE - Split {.tabset}
+
+```{r plot_marker_genes_clusters_tsne_split, results = "asis"}
+plot_feature_plot_wrapper <- function(obj, sub_df){
+  # print(sub_df["gene_name"])
+  p <- FeaturePlot(obj, features = sub_df["gene_name"], cols = c("grey", "blue"),
+                   reduction = "tsne", split.by = "Sample", pt.size = .05)
+  return(p)
+}
+
+for(cluster_n in names(markers_list)){
+  cat("\n")
+  cat("### ", cluster_n, " {.tabset} \n")
+  # df <- markers_list[[`cluster_n`]][1:min(12,dim(markers_list[[`cluster_n`]])[1]),]
+  df <- markers_list[[`cluster_n`]]
+  df <- subset(df, df$avg_logFC > 0)
+  df <- df[1:min(20,dim(df)[1]), ]
+  df_split <- split(df, ceiling(seq_along(df$gene_name)/2))
+  for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cluster_n, i, sep = "-"), "\n")
+    plot_list <- apply(df_split[[i]], 1, FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+    p_l <- plot_grid(plotlist = plot_list, ncol = 1)
+    print(p_l)
+    cat("\n")
+  }
+  cat("\n")
+}
+```
+
+## Clusters - Violin {.tabset}
+
+```{r plot_marker_genes_clusters_violin, results = "asis"}
+for(cluster_n in names(markers_list)){
+  cat("\n")
+  cat("### ", cluster_n, " {.tabset} \n")
+  df <- markers_list[[`cluster_n`]]
+  df <- subset(df, df$avg_logFC > 0)
+  df <- df[1:min(20,dim(df)[1]), ]
+  df_split <- split(df, ceiling(seq_along(df$gene_name)/1))
+  for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cluster_n, i, sep = "-"), "\n")
+    plot <- VlnPlot(blood, features = df_split[[i]]$gene_name,group.by = selected_res,
+                    pt.size = 0, combine = FALSE)
+    p <- plot[[1]] + ggtitle(df_split[[i]]$gene_name)
+    print(p)
+    cat("\n")
+  }
+  cat("\n")
+}
+```
+
+## Clusters - Violin - Split {.tabset}
+
+```{r plot_marker_genes_clusters_violin_split, results = "asis"}
+for(cluster_n in names(markers_list)){
+  cat("\n")
+  cat("### ", cluster_n, " {.tabset} \n")
+  df <- markers_list[[`cluster_n`]]
+  df <- subset(df, df$avg_logFC > 0)
+  df <- df[1:min(20,dim(df)[1]), ]
+  df_split <- split(df, ceiling(seq_along(df$gene_name)/1))
+  for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cluster_n, i, sep = "-"), "\n")
+    plot <- VlnPlot(blood, features = df_split[[i]]$gene_name, group.by = selected_res,
+                    pt.size = 0, combine = FALSE, split.by = "Sample")
+    p <- plot[[1]] + ggtitle(df_split[[i]]$gene_name)
+    print(p)
+    cat("\n")
+  }
+  cat("\n")
+}
+```
+
+## Clusters - Dotplot - All Cluster {.tabset}
+
+```{r DotPlot_allcluster, results = "asis"}
+for (n in c(1:3)) {
+  cat("\n")
+  cat("### ", paste0("Top ", n, " marker genes in each cluster"), " {.tabset} \n")
+  gene_list <- character(length = 0)
+  for(cluster_n in names(markers_list)){
+    df <- markers_list[[`cluster_n`]]
+    df <- subset(df, df$avg_logFC > 0)
+    count <- 0
+    gene_names <- df$gene_name
+    for (i in 1:length(gene_names)) {
+      if (gene_names[i] %in% gene_list) {
+        # print(cluster_n)
+        # print(i)
+        # print(gene_names[i])
+      } else {
+        gene_list <- c(gene_names[i], gene_list)
+        count <- count + 1
+      }
+      if (count == n) {
+        break
+      }
+    }
+  }
+  p <- DotPlot(blood, features = gene_list,  group.by = selected_res, dot.scale = 7 - n) + RotatedAxis() + ylab("Cluster") + theme(axis.text.x = element_text(size = 11 - n))
+  print(p)
+  cat("\n")
+}
+```
+
+## Clusters - Dotplot - Split {.tabset}
+
+```{r DotPlot_split, results = "asis"}
+for (n in c(1:3)) {
+  cat("\n")
+  cat("### ", paste0("Top ", n, " marker genes in each cluster"), " {.tabset} \n")
+  gene_list <- character(length = 0)
+  for(cluster_n in names(markers_list)){
+    df <- markers_list[[`cluster_n`]]
+    df <- subset(df, df$avg_logFC > 0)
+    count <- 0
+    gene_names <- df$gene_name
+    for (i in 1:length(gene_names)) {
+      if (gene_names[i] %in% gene_list) {
+        # print(cluster_n)
+        # print(i)
+        # print(gene_names[i])
+      } else {
+        gene_list <- c(gene_names[i], gene_list)
+        count <- count + 1
+      }
+      if (count == n) {
+        break
+      }
+    }
+  }
+  p <- DotPlot(blood, features = gene_list, group.by = selected_res, dot.scale = 6.3 - n, split.by = "Sample", cols = c("#F25122", "#02A4EF", "#FFBA02")) +
+    RotatedAxis() + ylab("Cluster") + theme(axis.text.x = element_text(size = 10 - n))
+  print(p)
+  cat("\n")
+}
+```
+
+## Clusters - Heatmap {.tabset}
+
+```{r clusters_heatmap, results = "asis"}
+for (n in c(3, 5, 10)) {
+  cat("\n")
+  cat("### ", paste0("Top ", n," marker genes in each cluster"), " {.tabset} \n")
+  gene_list <- c()
+  for(cluster_n in names(markers_list)){
+    df <- markers_list[[`cluster_n`]]
+    df <- subset(df, df$avg_logFC > 0)
+    df <- df[1:min(n, dim(df)[1]), ]
+    gene_list <- c(gene_list, df$gene_name)
+  }
+  # gene_list <- gene_list %>% rev() %>% unique() %>% rev()
+  p <- DoHeatmap(blood, features = gene_list)
+  print(p)
+  cat("\n")
+}
+```
+
+## Clusters - Heatmap - Downsample300 {.tabset}
+
+Downsample the clusters to a maximum of 300 cells each (makes the heatmap easier to see for small clusters)
+
+```{r clusters_heatmap_Downsample300, results = "asis"}
+for (n in c(3, 5, 10)) {
+  cat("\n")
+  cat("### ", paste0("Top ", n, " marker genes in each cluster"), " {.tabset} \n")
+  gene_list <- c()
+  for(cluster_n in names(markers_list)){
+    df <- markers_list[[`cluster_n`]]
+    df <- subset(df, df$avg_logFC > 0)
+    df <- df[1:min(n, dim(df)[1]), ]
+    gene_list <- c(gene_list, df$gene_name)
+  }
+  # gene_list <- gene_list %>% rev() %>% unique() %>% rev()
+  p <- DoHeatmap(subset(blood, downsample = 300), features = gene_list)
+  print(p)
+  cat("\n")
+}
+```
+
+# Notes
+
+Wed Sep 11, 2019:
+
+  * planC: merge cluster 0, 1, 14, 19 into 0.
+
+Tuesday, August 27, 2019:
+
+  * If a marker is already appeared in previous cluster, the follow up marker will be added, so that every cluster will have the same number of markers.
+
+Monday, August 26, 2019:
+
+  * Add marker genes, dotplot, heatmap.
+
+Sunday, August 25, 2019:
+
+  * If a gene express two out of three samples, we will keep these genes.
+
+Friday, August 9, 2019:
+
+  * Integrate analysis of UNinjured, injured and WASP96hr data, add Markers combined map.
+
+Friday, August 2, 2019:
+
+  * Split sample to different libraries, add QC, add combined map, change resolution (0.1 to 1).
+
+Thursday, August 1, 2019:
+
+  * Select the list of all cells of the 2 clusters (cluster 6 and 10) and do a clustering to see the sub-clusters.
+
+Monday, July 29, 2019:
+
+  * First version for integrate analysis of UNinjured injured WASP 10x indrop dropseq data.
+
+# Session Info
+```{r sessioninfo, message=TRUE}
+sessionInfo()
+```
+
