@@ -1,0 +1,815 @@
+---
+title: "Take all the cells from the plan C clusters: 0, 2, 4, 5, 6, 8, 9, 13, 16, 17 (all these are PL) and perform sub-clustering."
+author: "Yifang Liu"
+date: "`r format(Sys.time(), tz='America/New_York', usetz=TRUE)`"
+output:
+  rmdformats::html_clean:
+    code_folding: hide
+    fig_width: 10
+    fig_height: 10
+    highlight: kate
+    thumbnails: false
+    lightbox: true
+    gallery: true
+---
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print = 200)
+opts_chunk$set(echo = TRUE,
+               cache = FALSE,
+               prompt = FALSE,
+               tidy = TRUE,
+               comment = NA,
+               message = FALSE,
+               warning = FALSE)
+opts_knit$set(width = 75)
+```
+
+```{r setup}
+# Specify seed for reproducibility
+set.seed(123)
+
+# Setup
+library(Matrix)
+library(tidyverse)
+library(ggplot2)
+library(Seurat)
+library(cowplot)
+library(Rcpp)
+library(harmony)
+
+npc <- 20
+theta1 <- 2
+theta2 <- 5
+theta <- c(theta1, theta2)
+pt_size <- 0.05
+```
+
+# Before Run Harmony
+
+```{r initialize_seurat_object}
+# Initialize Seurat Object
+blood <- readRDS("data/cd_PL_cluster_191002.Rds")
+rownames(blood) <- gsub('\\\\', '-', rownames(blood))
+blood <- CreateSeuratObject(counts = blood, project = "blood", min.cells = 10, min.features = 100) %>%
+    NormalizeData(verbose = FALSE) %>%
+    FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+    ScaleData(features = rownames(blood), verbose = FALSE) %>%
+    RunPCA(pc.genes = blood@var.genes, npcs = npc, verbose = FALSE)
+```
+
+```{r metadata}
+blood[["percent.mito"]] <- PercentageFeatureSet(blood, pattern = "^mt:")
+
+# Make sure that the dataset ID is in the object's metadata.
+blood@meta.data$Sample <- c(
+  rep("UNinjured", sum(
+    sum(grepl("UNinjured_tenx_B1",colnames(blood))),
+    sum(grepl("UNinjured_tenx_B3",colnames(blood))),
+    sum(grepl("UNinjured_indrop_UC1",colnames(blood))),
+    sum(grepl("UNinjured_indrop_UC2",colnames(blood)))
+  )),
+  rep("injured", sum(
+    sum(grepl("injured_tenx_B2",colnames(blood))),
+    sum(grepl("injured_tenx_B4",colnames(blood))),
+    sum(grepl("injured_indrop_PC1",colnames(blood))),
+    sum(grepl("injured_indrop_PC2",colnames(blood)))
+  )),
+  rep("WASP96hr", sum(
+    sum(grepl("WASP96hr_dropseq_PI24CIRC1",colnames(blood))),
+    sum(grepl("WASP96hr_dropseq_PI24CIRC2",colnames(blood))),
+    sum(grepl("WASP96hr_dropseq_PI24CIRC3",colnames(blood)))
+  ))
+)
+
+# Define order of appearance of timepoints
+my_levels <- c("UNinjured", "injured", "WASP96hr")
+
+# Relevel object@meta.data$Sample
+blood@meta.data$Sample <- factor(x = blood@meta.data$Sample, levels = my_levels)
+
+blood@meta.data$Technology <- c(
+  rep("tenx", sum(
+    sum(grepl("UNinjured_tenx_B1",colnames(blood))),
+    sum(grepl("UNinjured_tenx_B3",colnames(blood)))
+  )),
+  rep("indrop", sum(
+    sum(grepl("UNinjured_indrop_UC1",colnames(blood))),
+    sum(grepl("UNinjured_indrop_UC2",colnames(blood)))
+  )),
+  rep("tenx", sum(
+    sum(grepl("injured_tenx_B2",colnames(blood))),
+    sum(grepl("injured_tenx_B4",colnames(blood)))
+  )),
+  rep("indrop", sum(
+    sum(grepl("injured_indrop_PC1",colnames(blood))),
+    sum(grepl("injured_indrop_PC2",colnames(blood)))
+  )),
+  rep("dropseq", sum(
+    sum(grepl("WASP96hr_dropseq_PI24CIRC1",colnames(blood))),
+    sum(grepl("WASP96hr_dropseq_PI24CIRC2",colnames(blood))),
+    sum(grepl("WASP96hr_dropseq_PI24CIRC3",colnames(blood)))
+  ))
+)
+
+# Define order of appearance of timepoints
+my_levels <- c("tenx", "indrop", "dropseq")
+
+# Relevel object@meta.data$Sample
+blood@meta.data$Technology <- factor(x = blood@meta.data$Technology, levels = my_levels)
+
+blood@meta.data$LibraryID <- c(
+  rep("UNinjured_tenx_B1", sum(grepl("UNinjured_tenx_B1",colnames(blood)))),
+  rep("UNinjured_tenx_B3", sum(grepl("UNinjured_tenx_B3",colnames(blood)))),
+  rep("UNinjured_indrop_UC1", sum(grepl("UNinjured_indrop_UC1",colnames(blood)))),
+  rep("UNinjured_indrop_UC2", sum(grepl("UNinjured_indrop_UC2",colnames(blood)))),
+  rep("injured_tenx_B2", sum(grepl("injured_tenx_B2",colnames(blood)))),
+  rep("injured_tenx_B4", sum(grepl("injured_tenx_B4",colnames(blood)))),
+  rep("injured_indrop_PC1", sum(grepl("injured_indrop_PC1",colnames(blood)))),
+  rep("injured_indrop_PC2", sum(grepl("injured_indrop_PC2",colnames(blood)))),
+  rep("WASP96hr_dropseq_PI24CIRC1", sum(grepl("WASP96hr_dropseq_PI24CIRC1",colnames(blood)))),
+  rep("WASP96hr_dropseq_PI24CIRC2", sum(grepl("WASP96hr_dropseq_PI24CIRC2",colnames(blood)))),
+  rep("WASP96hr_dropseq_PI24CIRC3", sum(grepl("WASP96hr_dropseq_PI24CIRC3",colnames(blood))))
+)
+
+previous_cluster_info <- read.table("data/PL_cluster_metadata.txt", header = TRUE, stringsAsFactors = FALSE)
+# identical(row.names(previous_cluster_info), row.names(blood@meta.data))
+# all.equal(row.names(previous_cluster_info), row.names(blood@meta.data))
+
+blood@meta.data$previous_cluster_info <- previous_cluster_info$merge_cluster %>% as.factor()
+```
+
+There is a clear difference between the technology in the uncorrected PCs
+
+```{r difference_pc}
+p1 <- DimPlot(object = blood, reduction = "pca", group.by = "Sample", do.return = TRUE, pt.size = pt_size)
+p2 <- VlnPlot(object = blood, features = "PC_1", group.by = "Sample", do.return = TRUE, pt.size = pt_size)
+p3 <- DimPlot(object = blood, reduction = "pca", group.by = "Technology", do.return = TRUE, pt.size = pt_size)
+p4 <- VlnPlot(object = blood, features = "PC_1", group.by = "Technology", do.return = TRUE, pt.size = pt_size)
+
+plot_grid(p1, p2, p3, p4)
+```
+
+# After Run Harmony
+
+```{r run_harmony}
+blood <- blood %>%
+  RunHarmony(c("Sample", "Technology"), theta = theta, plot_convergence = FALSE, max.iter.harmony = 20)
+```
+
+The datasets are well integrated in the first 2 dimensions after Harmony.
+
+```{r harmony_pc}
+p1 <- DimPlot(object = blood, reduction = "harmony", group.by = "Sample", do.return = TRUE, pt.size = pt_size)
+p2 <- VlnPlot(object = blood, features = "harmony_1", group.by = "Sample", do.return = TRUE, pt.size = pt_size)
+p3 <- DimPlot(object = blood, reduction = "harmony", group.by = "Technology", do.return = TRUE, pt.size = pt_size)
+p4 <- VlnPlot(object = blood, features = "harmony_1", group.by = "Technology", do.return = TRUE, pt.size = pt_size)
+
+plot_grid(p1, p2, p3, p4)
+```
+
+# Downstream Analysis
+
+```{r downstream_analysis}
+blood <- blood %>%
+  RunUMAP(reduction = "harmony", dims = 1:npc) %>%
+  RunTSNE(reduction = "harmony", dims = 1:npc) %>%
+  FindNeighbors(reduction = "harmony", dims = 1:npc, verbose = FALSE, force.recalc = TRUE) %>%
+  FindClusters(resolution = seq(0.1, 1, 0.1), verbose = FALSE) %>%
+  identity()
+```
+
+# Sample / Technology / LibraryID / Percent mito / Previous cluster info - UMAP {.tabset}
+
+## Sample
+
+```{r sample_umap}
+DimPlot(blood, reduction = "umap", group.by = "Sample", pt.size = pt_size)
+```
+
+## Technology
+
+```{r technology_umap}
+DimPlot(blood, reduction = "umap", group.by = "Technology", pt.size = pt_size)
+```
+
+## LibraryID
+
+```{r libraryid_umap}
+DimPlot(blood, reduction = "umap", group.by = "LibraryID", pt.size = pt_size)
+```
+
+## Percent mito
+
+```{r percent_mito_umap}
+FeaturePlot(blood, reduction = "umap", features = c("percent.mito"), pt.size = pt_size)
+```
+
+## Previous cluster info
+
+```{r Previous_cluster_info_umap}
+DimPlot(blood, reduction = "umap", group.by = "previous_cluster_info", pt.size = pt_size)
+```
+
+
+# UMAP - resolutions {.tabset}
+
+In the UMAP embedding, we can see more intricate structure. Since we used harmony embeddings, the UMAP embeddings are well mixed.
+
+```{r UMAP_resolutions, results = 'asis'}
+for(res in seq(0.1, 1, 0.1)){
+  cat("\n")
+  cat("\n##", "Cluster resolution: ", res, "{.tabset}\n")
+  selected_res <- paste0("RNA_snn_res.", res)
+  Idents(blood) <- selected_res
+  p <- DimPlot(blood, reduction = "umap", label = TRUE, pt.size = pt_size)
+  print(p)
+  cat("\n")
+}
+```
+
+# UMAP - Resolutions - Split {.tabset}
+
+In the UMAP embedding, we can see more intricate structure. Since we used harmony embeddings, the UMAP embeddings are well mixed.
+
+```{r umap_resolutions_split, results = 'asis'}
+for(res in seq(0.1, 1, 0.1)){
+  cat("\n")
+  cat("\n##", "Cluster resolution: ", res, "{.tabset}\n")
+  selected_res <- paste0("RNA_snn_res.", res)
+  Idents(blood) <- selected_res
+  p <- DimPlot(blood, reduction = "umap", label = TRUE, split.by = "Sample", pt.size = pt_size)
+  print(p)
+  cat("\n")
+}
+```
+
+# Sample / Technology / LibraryID / Percent mito / Previous cluster info - TSNE {.tabset}
+
+## Sample
+
+```{r sample_tsne}
+DimPlot(blood, reduction = "tsne", group.by = "Sample", pt.size = pt_size)
+```
+
+## Technology
+
+```{r technology_tsne}
+DimPlot(blood, reduction = "tsne", group.by = "Technology", pt.size = pt_size)
+```
+
+## LibraryID
+
+```{r libraryid_tsne}
+DimPlot(blood, reduction = "tsne", group.by = "LibraryID", pt.size = pt_size)
+```
+
+## Percent mito
+
+```{r percent_mito_tsne}
+FeaturePlot(blood, reduction = "tsne", features = c("percent.mito"), pt.size = pt_size)
+```
+
+## Previous cluster info
+
+```{r Previous_cluster_info_tsne}
+DimPlot(blood, reduction = "umap", group.by = "previous_cluster_info", pt.size = pt_size)
+```
+
+# TSNE - resolutions {.tabset}
+
+```{r tsne_resolutions, results = 'asis'}
+for(res in seq(0.1, 1, 0.1)){
+  cat("\n")
+  cat("\n##", "Cluster resolution: ", res, "{.tabset}\n")
+  selected_res <- paste0("RNA_snn_res.", res)
+  Idents(blood) <- selected_res
+  p <- DimPlot(blood, reduction = "tsne", label = TRUE, pt.size = pt_size)
+  print(p)
+  cat("\n")
+}
+```
+
+# TSNE - Resolutions - Split {.tabset}
+
+```{r tsne_resolutions_split, results = 'asis'}
+for(res in seq(0.1, 1, 0.1)){
+  cat("\n")
+  cat("\n##", "Cluster resolution: ", res, "{.tabset}\n")
+  selected_res <- paste0("RNA_snn_res.", res)
+  Idents(blood) <- selected_res
+  p <- DimPlot(blood, reduction = "tsne", label = TRUE, split.by = "Sample", pt.size = pt_size)
+  print(p)
+  cat("\n")
+}
+```
+
+# Markers
+
+```{r markers}
+selected_genes <- read.table("data/Markers.txt", header = TRUE)
+DT::datatable(selected_genes)
+```
+
+## UMAP {.tabset}
+
+```{r markers_umap, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneName %in% rownames(blood))
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(blood)[selected_genes$geneName, ])) > 0, ]
+plot_feature_plot_wrapper <- function(obj, sub_df){
+  p <- FeaturePlot(obj, features = sub_df[3], cols = c("grey", "blue"),
+                   reduction = "umap", pt.size = pt_size)
+  return(p)
+}
+for(cell_t in unique(selected_genes$cellType)){
+  cat("\n")
+  cat("###", cell_t, " {.tabset} \n")
+  df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+  df_split <- split(df, ceiling(seq_along(df$geneName)/2))
+  for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cell_t, i, sep = "-"), "\n")
+    plot_list <- apply(df_split[[i]], 1, FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+    p_l <- plot_grid(plotlist = plot_list, ncol = 1)
+    print(p_l)
+    cat("\n")
+  }
+  cat("\n")
+}
+```
+
+## UMAP - Split {.tabset}
+
+```{r markers_umap_split, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneName %in% rownames(blood))
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(blood)[selected_genes$geneName,])) > 0, ]
+plot_feature_plot_wrapper <- function(obj, sub_df){
+  p <- FeaturePlot(obj, features = sub_df[3], cols = c("grey", "blue"),
+                   reduction = "umap",  split.by = "Sample", pt.size = pt_size)
+  return(p)
+}
+for(cell_t in unique(selected_genes$cellType)){
+  cat("\n")
+  cat("###", cell_t," {.tabset} \n")
+  df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+  df_split <- split(df, ceiling(seq_along(df$geneName)/2))
+  for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cell_t, i, sep = "-"), "\n")
+    plot_list <- apply(df_split[[i]], 1, FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+    p_l <- plot_grid(plotlist = plot_list, ncol = 1)
+    print(p_l)
+    cat("\n")
+  }
+  cat("\n")
+}
+```
+
+## TSNE {.tabset}
+
+```{r markers_tsne, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneName %in% rownames(blood))
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(blood)[selected_genes$geneName,])) > 0, ]
+plot_feature_plot_wrapper <- function(obj,sub_df){
+  p <- FeaturePlot(obj, features = sub_df[3], cols = c("grey", "blue"),
+                   reduction = "tsne", pt.size = pt_size)
+  return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+  cat("\n")
+  cat("###", cell_t," {.tabset} \n")
+  df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+  df_split <- split(df, ceiling(seq_along(df$geneName)/2))
+  for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cell_t, i, sep = "-"), "\n")
+    plot_list <- apply(df_split[[i]], 1, FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+    p_l <- plot_grid(plotlist = plot_list, ncol = 1)
+    print(p_l)
+    cat("\n")
+  }
+  cat("\n")
+}
+```
+
+## TSNE - Split {.tabset}
+
+```{r markers_tsne_split, results = "asis"}
+selected_genes <- selected_genes %>% dplyr::filter(geneName %in% rownames(blood))
+selected_genes <- selected_genes[rowSums(as.matrix(GetAssayData(blood)[selected_genes$geneName,])) > 0, ]
+plot_feature_plot_wrapper <- function(obj, sub_df){
+  p <- FeaturePlot(obj, features = sub_df[3], cols = c("grey", "blue"),
+                   reduction = "tsne",  split.by = "Sample", pt.size = pt_size)
+  return(p)
+}
+
+for(cell_t in unique(selected_genes$cellType)){
+  cat("\n")
+  cat("###", cell_t," {.tabset} \n")
+  df <- selected_genes %>% dplyr::filter(cellType == cell_t)
+  df_split <- split(df, ceiling(seq_along(df$geneName)/2))
+  for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cell_t, i, sep = "-"), "\n")
+    plot_list <- apply(df_split[[i]], 1, FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+    p_l <- plot_grid(plotlist = plot_list, ncol = 1)
+    print(p_l)
+    cat("\n")
+  }
+  cat("\n")
+}
+```
+
+```{r save_Rds}
+saveRDS(blood, file = "output/Plasmatocyte_sub_clustering_resolution_0.4_npc_20_theta_2_5_191002.Rds")
+```
+
+# Clusters resolution = 0.4
+
+```{r resolution}
+DefaultAssay(blood) <- "RNA"
+resolution <- 0.4
+selected_res <- paste0("RNA_snn_res.", resolution)
+Idents(blood) <- selected_res
+```
+
+
+```{r findMarkers}
+if (file.exists(paste0("output/findMarkers_", "resolution_", resolution, "_npc_", npc, "_theta_", theta1, "_", theta2, ".Rds"))) {
+    markers_list <- readRDS(paste0("output/findMarkers_", "resolution_", resolution, "_npc_", npc, "_theta_", theta1, "_", theta2, ".Rds"))
+}else{
+  table_df <- table(blood@meta.data[ , selected_res], blood@meta.data$Sample) %>%
+    as.data.frame() %>% spread(key = Var2, value =Freq)
+  colnames(table_df)[1] <- "cluster"
+  markers_list <- list()
+  for(cluster_id in table_df$cluster){
+      markers <- FindMarkers(blood, ident.1 = cluster_id)
+      markers$gene_name <- row.names(markers)
+      write.csv(markers, file = paste0("output/findMarkers_", "resolution_", resolution, "_npc_", npc, "_theta_", theta1, "_", theta2, "_cluster_", cluster_id, ".csv"))
+      markers_list[[paste0("cluster_", cluster_id)]] <- markers
+  }
+  saveRDS(markers_list,
+          file = paste0("output/findMarkers_", "resolution_", resolution, "_npc_", npc, "_theta_", theta1, "_", theta2, ".Rds"))
+}
+```
+
+## Clusters - UMAP {.tabset}
+
+```{r plot_marker_genes_clusters_umap, results = "asis"}
+plot_feature_plot_wrapper <- function(obj, sub_df){
+  # print(sub_df["gene_name"])
+    p <- FeaturePlot(obj, features = sub_df["gene_name"], cols = c("grey", "blue"),
+reduction = "umap", pt.size = pt_size)
+    return(p)
+}
+
+for(cluster_n in names(markers_list)){
+    cat("\n")
+    cat("### ", cluster_n," {.tabset} \n")
+    # df <- markers_list[[`cluster_n`]][1:min(12,dim(markers_list[[`cluster_n`]])[1]),]
+    df <- markers_list[[`cluster_n`]]
+    # df <- df[order(df$avg_logFC, decreasing = TRUE), ]
+    df <- subset(df, df$avg_logFC > 0)
+    df <- df[1:20,]
+    df_split <- split(df, ceiling(seq_along(df$gene_name)/4))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####", paste(cluster_n, i, sep = "-"), "\n")
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+        p_l <- plot_grid(plotlist = plot_list, ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+```
+
+## Clusters - UMAP - Split {.tabset}
+
+```{r plot_marker_genes_clusters_umap_split, results = "asis"}
+plot_feature_plot_wrapper <- function(obj, sub_df){
+  # print(sub_df["gene_name"])
+    p <- FeaturePlot(obj, features = sub_df["gene_name"], cols = c("grey", "blue"),
+reduction = "umap", split.by = "Sample", pt.size = pt_size)
+    return(p)
+}
+
+for(cluster_n in names(markers_list)){
+    cat("\n")
+    cat("### ", cluster_n, " {.tabset} \n")
+    # df <- markers_list[[`cluster_n`]][1:min(12,dim(markers_list[[`cluster_n`]])[1]),]
+    df <- markers_list[[`cluster_n`]]
+    # df <- df[order(df$avg_logFC, decreasing = TRUE), ]
+    df <- subset(df, df$avg_logFC > 0)
+    df <- df[1:20,]
+    df_split <- split(df, ceiling(seq_along(df$gene_name)/2))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####", paste(cluster_n, i, sep = "-"), "\n")
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+        p_l <- plot_grid(plotlist = plot_list, ncol = 1)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+```
+
+## Clusters - t-SNE {.tabset}
+
+```{r plot_marker_genes_clusters_tsne, results = "asis"}
+plot_feature_plot_wrapper <- function(obj, sub_df){
+  # print(sub_df["gene_name"])
+    p <- FeaturePlot(obj, features = sub_df["gene_name"], cols = c("grey", "blue"),
+reduction = "tsne", pt.size = pt_size)
+    return(p)
+}
+
+for(cluster_n in names(markers_list)){
+    cat("\n")
+    cat("### ", cluster_n," {.tabset} \n")
+    # df <- markers_list[[`cluster_n`]][1:min(12,dim(markers_list[[`cluster_n`]])[1]),]
+    df <- markers_list[[`cluster_n`]]
+    # df <- df[order(df$avg_logFC, decreasing = TRUE), ]
+    df <- subset(df, df$avg_logFC > 0)
+    df <- df[1:20,]
+    df_split <- split(df, ceiling(seq_along(df$gene_name)/4))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####", paste(cluster_n, i, sep = "-"), "\n")
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+        p_l <- plot_grid(plotlist = plot_list, ncol = 2)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+```
+
+## Clusters - t-SNE - Split {.tabset}
+
+```{r plot_marker_genes_clusters_tsne_split, results = "asis"}
+plot_feature_plot_wrapper <- function(obj, sub_df){
+  # print(sub_df["gene_name"])
+    p <- FeaturePlot(obj, features = sub_df["gene_name"], cols = c("grey", "blue"),
+reduction = "tsne", split.by = "Sample", pt.size = pt_size)
+    return(p)
+}
+
+for(cluster_n in names(markers_list)){
+    cat("\n")
+    cat("### ", cluster_n," {.tabset} \n")
+    # df <- markers_list[[`cluster_n`]][1:min(12,dim(markers_list[[`cluster_n`]])[1]),]
+    df <- markers_list[[`cluster_n`]]
+    # df <- df[order(df$avg_logFC, decreasing = TRUE), ]
+    df <- subset(df, df$avg_logFC > 0)
+    df <- df[1:20,]
+    df_split <- split(df, ceiling(seq_along(df$gene_name)/2))
+    for(i in names(df_split)){
+        cat("\n")
+        cat("####", paste(cluster_n, i, sep = "-"), "\n")
+        plot_list <- apply(df_split[[i]],1,FUN = function(x){plot_feature_plot_wrapper(blood, x)})
+        p_l <- plot_grid(plotlist = plot_list, ncol = 1)
+        print(p_l)
+        cat("\n")
+    }
+    cat("\n")
+}
+```
+
+## Clusters - Violin {.tabset}
+
+```{r plot_marker_genes_clusters_violin, results = "asis"}
+for(cluster_n in names(markers_list)){
+    cat("\n")
+    cat("### ", cluster_n," {.tabset} \n")
+    df <- markers_list[[`cluster_n`]]
+    # df <- df[order(df$avg_logFC, decreasing = TRUE), ]
+    df <- subset(df, df$avg_logFC > 0)
+    df <- df[1:20, ]
+    # df <- markers_list[[`cluster_n`]][1:6,]
+    df_split <- split(df, ceiling(seq_along(df$gene_name)/1))
+    for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cluster_n,i,sep="-"), "\n")
+    plot <- VlnPlot(blood, features =  df_split[[i]]$gene_name,  group.by = selected_res,
+    pt.size = 0, combine = FALSE)
+    p <- plot[[1]] + ggtitle(df_split[[i]]$gene_name)
+    print(p)
+    cat("\n")
+    }
+    cat("\n")
+}
+```
+
+## Clusters - Violin - Split {.tabset}
+
+```{r plot_marker_genes_clusters_violin_split, results = "asis"}
+for(cluster_n in names(markers_list)){
+    cat("\n")
+    cat("### ", cluster_n, " {.tabset} \n")
+    df <- markers_list[[`cluster_n`]]
+    # df <- df[order(df$avg_logFC, decreasing = TRUE), ]
+    df <- subset(df, df$avg_logFC > 0)
+    df <- df[1:20, ]
+    df_split <- split(df, ceiling(seq_along(df$gene_name)/1))
+    for(i in names(df_split)){
+    cat("\n")
+    cat("####", paste(cluster_n,i,sep="-"),"\n")
+    plot <- VlnPlot(blood, features =  df_split[[i]]$gene_name,  group.by = selected_res,
+    pt.size = 0, combine = FALSE, split.by = "Sample")
+    p <- plot[[1]] + ggtitle(df_split[[i]]$gene_name)
+    print(p)
+    cat("\n")
+    }
+    cat("\n")
+}
+```
+
+## Clusters - Dotplot - All Cluster {.tabset}
+
+```{r DotPlot_allcluster, results = "asis"}
+for (n in c(1:20)) {
+  cat("\n")
+  cat("### ", paste0("Top ", n, " markers each"), " {.tabset} \n")
+  gene_list <- character(length = 0)
+  for(cluster_n in names(markers_list)){
+    df <- markers_list[[`cluster_n`]]
+    df <- subset(df, df$avg_logFC > 0)
+    count <- 0
+    gene_names <- df$gene_name
+    for (i in 1:length(gene_names)) {
+      if (gene_names[i] %in% gene_list) {
+        # print(cluster_n)
+        # print(i)
+        # print(gene_names[i])
+      } else {
+        gene_list <- c(gene_names[i], gene_list)
+        count <- count + 1
+      }
+      if (count == n) {
+        break
+      }
+    }
+  }
+  p <- DotPlot(blood, features = gene_list,  group.by = selected_res, dot.scale = 5.2) + RotatedAxis() + ylab("Cluster") + theme(axis.text.x = element_text(size = 11))
+  print(p)
+  cat("\n")
+}
+```
+
+## Clusters - Dotplot - Split {.tabset}
+
+```{r DotPlot_split, results = "asis"}
+for (n in c(1:20)) {
+  cat("\n")
+  cat("### ", paste0("Top ", n, " markers each"), " {.tabset} \n")
+  gene_list <- character(length = 0)
+  for(cluster_n in names(markers_list)){
+    df <- markers_list[[`cluster_n`]]
+    df <- subset(df, df$avg_logFC > 0)
+    count <- 0
+    gene_names <- df$gene_name
+    for (i in 1:length(gene_names)) {
+      if (gene_names[i] %in% gene_list) {
+        # print(cluster_n)
+        # print(i)
+        # print(gene_names[i])
+      } else {
+        gene_list <- c(gene_names[i], gene_list)
+        count <- count + 1
+      }
+      if (count == n) {
+        break
+      }
+    }
+  }
+  p <- DotPlot(blood, features = gene_list, group.by = selected_res, dot.scale = 4.3, split.by = "Sample", cols = c("#F25122", "#02A4EF", "#FFBA02")) +
+    RotatedAxis() + ylab("Cluster") + theme(axis.text.x = element_text(size = 10))
+  print(p)
+  cat("\n")
+}
+```
+
+## Clusters - Heatmap {.tabset}
+
+```{r clusters_heatmap, results = "asis"}
+for (n in c(3, 5, 10)) {
+  cat("\n")
+  cat("### ", paste0("Top ", n, " marker genes in each cluster"), " {.tabset} \n")
+  gene_list <- character(length = 0)
+  for(cluster_n in names(markers_list)){
+    df <- markers_list[[`cluster_n`]]
+    df <- subset(df, df$avg_logFC > 0)
+    count <- 0
+    gene_names <- df$gene_name
+    for (i in 1:length(gene_names)) {
+      if (gene_names[i] %in% gene_list) {
+        # print(cluster_n)
+        # print(i)
+        # print(gene_names[i])
+      } else {
+        gene_list <- c(gene_names[i], gene_list)
+        count <- count + 1
+      }
+      if (count == n) {
+        break
+      }
+    }
+  }
+  p <- DoHeatmap(blood, features = gene_list)
+  print(p)
+  cat("\n")
+}
+```
+
+## Clusters - Heatmap - Downsample300 {.tabset}
+
+Downsample the clusters to a maximum of 300 cells each (makes the heatmap easier to see for small clusters)
+
+```{r clusters_heatmap_Downsample300, results = "asis"}
+for (n in c(3, 5, 10)) {
+  cat("\n")
+  cat("##", paste0("Top ", n, " marker genes in each cluster"), " {.tabset} \n")
+  gene_list <- character(length = 0)
+  for(cluster_n in names(markers_list)){
+    df <- markers_list[[`cluster_n`]]
+    df <- subset(df, df$avg_logFC > 0)
+    count <- 0
+    gene_names <- df$gene_name
+    for (i in 1:length(gene_names)) {
+      if (gene_names[i] %in% gene_list) {
+        # print(cluster_n)
+        # print(i)
+        # print(gene_names[i])
+      } else {
+        gene_list <- c(gene_names[i], gene_list)
+        count <- count + 1
+      }
+      if (count == n) {
+        break
+      }
+    }
+  }
+  p <- DoHeatmap(subset(blood, downsample = 300), features = gene_list)
+  print(p)
+  cat("\n")
+}
+```
+
+# Notes
+
+Wed Oct 2, 2019:
+
+  * Take all the cells from the plan C clusters: 0, 2, 4, 5, 6, 8, 9, 13, 16, 17 (all these are PL) and perform sub-clustering.
+
+Wed Sep 11, 2019:
+
+  * planC: merge cluster 0, 1, 14, 19 into 0.
+
+Tuesday, August 27, 2019:
+
+  * If a marker is already appeared in previous cluster, the follow up marker will be added, so that every cluster will have the same number of markers.
+
+Monday, August 26, 2019:
+
+  * Add marker genes, dotplot, heatmap.
+
+Sunday, August 25, 2019:
+
+  * If a gene express two out of three samples, we will keep these genes.
+
+Monday, August 22, 2019:
+
+  * Add Heatmap.
+
+Monday, August 19, 2019:
+
+  * Add find markers, Dotplot.
+
+Friday, August 9, 2019:
+
+  * Integrate analysis of UNinjured, injured and WASP96hr data, add Markers combined map.
+
+Friday, August 2, 2019:
+
+  * Split sample to different libraries, add QC, add combined map, change resolution (0.1 to 1).
+
+Thursday, August 1, 2019:
+
+  * Select the list of all cells of the 2 clusters (cluster 6 and 10) and do a clustering to see the sub-clusters.
+
+Monday, July 29, 2019:
+
+  * First version for integrate analysis of UNinjured injured WASP 10x indrop dropseq data.
+
+# Session Info
+
+```{r sessioninfo, message=TRUE}
+sessionInfo()
+```
