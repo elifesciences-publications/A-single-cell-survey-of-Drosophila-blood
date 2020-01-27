@@ -1,0 +1,21 @@
+details:
+- algorithm:
+    cellular_barcode_correction: 1
+    minimum_barcode_depth: 1000
+    sample_barcodes: /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/meta/run2/sample_barcodes_revcomp.txt
+    singlecell_quantifier: rapmap
+    transcriptome_fasta: /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/annotations/flybase/FB2017_04/transcriptome_2017-10-02.fasta
+    umi_type: harvard-indrop-v3
+  analysis: scRNA-seq
+  description: run2
+  files:
+  - /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/data-raw/run2/fastq/170620_NB501673_0150_AH2W2CBGX3_R1.fastq.gz
+  - /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/data-raw/run2/fastq/170620_NB501673_0150_AH2W2CBGX3_R2.fastq.gz
+  - /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/data-raw/run2/fastq/170620_NB501673_0150_AH2W2CBGX3_R3.fastq.gz
+  - /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/data-raw/run2/fastq/170620_NB501673_0150_AH2W2CBGX3_R4.fastq.gz
+  genome_build: BDGP6
+  metadata: {}
+fc_date: '2017-10-13'
+fc_name: indrop_rnaseq
+upload:
+  dir: /n/data1/cores/bcbio/PIs/norbert_perrimon/blood_scrnaseq/data/run2

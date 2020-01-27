@@ -1,0 +1,13 @@
+Transcriptome details:
+FlyBase (FB2018_02 r6.21)
+Assembled by combining:
+- dmel-all-transcript-r6.21.fasta.gz
+- dmel-all-miRNA-r6.21.fasta.gz
+- dmel-all-miscRNA-r6.21.fasta.gz
+- dmel-all-ncRNA-r6.21.fasta.gz
+- dmel-all-pseudogene-r6.21.fasta.gz
+- dmel-all-tRNA-r6.21.fasta.gz
+- EGFP and GAL4 FASTA spike-ins
+
+All fasta files (including the sequence for EGFP and GAL4) were concatenated to generate a single "complete" genome. 
+This genome was used for alignment for bcbio-nextgen.
